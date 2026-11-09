@@ -85,9 +85,12 @@ $(BUILD_DIR)/%.json: $(GEN_DIR)/%.c $(GEN_H) | $(BUILD_DIR)
 pgo:
 	$(MAKE) clean
 	$(MAKE) CFLAGS="-fprofile-generate" LDFLAGS="-fprofile-generate"
+	mkdir -p $(BUILD_DIR)/pgo-sandbox
+	rm -f pgo-train.log
 	@for sim in simulations/0*.qs simulations/1*.qs; do \
-			[ -f "$$sim" ] && LLVM_PROFILE_FILE="$(CURDIR)/pgo_%p.profraw" __QS_UI_SHUT_UP=1 ./$(TARGET) --no-tui "$$sim" >/dev/null || true; \
+		[ -f "$$sim" ] && (cd $(BUILD_DIR)/pgo-sandbox && LLVM_PROFILE_FILE="$(CURDIR)/pgo_%p.profraw" __QS_UI_SHUT_UP=1 $(CURDIR)/$(TARGET) --no-tui "$(CURDIR)/$$sim" >/dev/null 2>>$(CURDIR)/pgo-train.log) || true; \
 	done
+	@echo "PGO training stderr: pgo-train.log ($$(grep -c 'warning:' pgo-train.log || true) warnings)"
 	llvm-profdata merge -output=default.profdata pgo_*.profraw
 	rm -f pgo_*.profraw
 	$(MAKE) clean-KeepProf
