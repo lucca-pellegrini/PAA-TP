@@ -1,5 +1,5 @@
 # Canonical Report Suite 2: Mandatory TP Specification Matrix
-# Compares (a) Traditional, (b) Hybrid (M=16), and (c) Hybrid + Median-of-Three (M=16)
+# Compares (a) Traditional, (b) Hybrid (M=50), and (c) Hybrid + Median-of-Three (M=50)
 # across (a) random, (b) sorted, (c) reverse, (d) repeated, and (e) worst_case workloads.
 # Note: Traditional and Hybrid share the exact same Lomuto + Last-element pivot strategy
 # so that sorted/reverse inputs induce the canonical O(n^2) worst case, while organ_pipe /
@@ -53,7 +53,7 @@ variant trad {
 variant hybrid {
 	partition = lomuto;
 	pivot = last;
-	cutoff = 16;
+	cutoff = 50;
 	small_sort = insertion;
 	execution = recursive;
 	max_depth = 4096; // stack-safe limit: records depth_exceeded instead of overflowing the 8 MB stack
@@ -62,7 +62,7 @@ variant hybrid {
 variant hybrid_med3 {
 	partition = hoare;
 	pivot = median3;
-	cutoff = 16;
+	cutoff = 50;
 	small_sort = insertion;
 	execution = recursive;
 	max_depth = 4096; // stack-safe limit: records depth_exceeded instead of overflowing the 8 MB stack

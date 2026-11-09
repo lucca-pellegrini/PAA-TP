@@ -36,7 +36,7 @@ dataset ext_partial_80 {
 variant hoare_med3 {
 	partition = hoare;
 	pivot = median3;
-	cutoff = 16;
+	cutoff = 50;
 	small_sort = insertion;
 	execution = tail_call;
 }
@@ -44,7 +44,7 @@ variant hoare_med3 {
 variant hoare_iter {
 	partition = hoare;
 	pivot = median3;
-	cutoff = 16;
+	cutoff = 50;
 	small_sort = insertion;
 	execution = iterative;
 }
@@ -52,7 +52,7 @@ variant hoare_iter {
 variant three_way_med3 {
 	partition = three_way;
 	pivot = median3;
-	cutoff = 16;
+	cutoff = 50;
 	small_sort = insertion;
 	execution = tail_call;
 }
@@ -76,7 +76,7 @@ variant pdq_sort {
 variant parallel_4t {
 	partition = hoare;
 	pivot = median3;
-	cutoff = 16;
+	cutoff = 50;
 	small_sort = insertion;
 	execution = parallel;
 	threads = 4;
@@ -85,7 +85,7 @@ variant parallel_4t {
 variant parallel_6t {
 	partition = hoare;
 	pivot = median3;
-	cutoff = 16;
+	cutoff = 50;
 	small_sort = insertion;
 	execution = parallel;
 	threads = 6;

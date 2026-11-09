@@ -3,7 +3,7 @@
 host {
 	pin_cpus = [0];
 	cold_cache = true;
-	repetitions = 7;
+	repetitions = 30;
 	warmup = 2;
 }
 
