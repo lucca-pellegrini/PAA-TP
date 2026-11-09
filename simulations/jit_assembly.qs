@@ -76,7 +76,7 @@ variant pragma_no_vec {
 benchmark jit_assembly {
 	datasets = [jit_random, jit_sorted];
 	variants = [cflags_O1, cflags_O2, cflags_O3_native, pragma_no_unroll, pragma_unroll_4, pragma_no_vec];
-	metrics = [monotonic_ns, comparisons, swaps, moves, cycles, instructions, branches, branch_misses, l1d_misses, llc_misses];
+	metrics = [monotonic_ns, comparisons, swaps, moves, cycles, instructions, branches, branch_misses, l1d_misses];
 	output_csv = "report/data/jit_assembly.csv";
 	emit_asm = true;
 }

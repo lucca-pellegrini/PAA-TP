@@ -71,6 +71,6 @@ variant hybrid_med3 {
 benchmark tp_official {
 	datasets = [random, sorted, reverse, repeated, worst_case, worst_case_med3];
 	variants = [trad, hybrid, hybrid_med3];
-	metrics = [monotonic_ns, comparisons, swaps, moves, cycles, instructions, branches, branch_misses, l1d_misses, llc_misses];
+	metrics = [monotonic_ns, comparisons, swaps, moves, cycles, instructions, branches, branch_misses, l1d_misses];
 	output_csv = "report/data/tp_official.csv";
 }

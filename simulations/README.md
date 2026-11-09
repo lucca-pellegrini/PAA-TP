@@ -32,3 +32,11 @@ Executed by `make report` to populate `report/data/*.csv`:
 - `tp_official.qs`: Official specification benchmark comparing Traditional, Hybrid, and Hybrid + Median-of-Three across all mandatory workloads and sizes.
 - `extensions_pdq.qs`: Extended study of Bentley-McIlroy 3-Way, Or Peters PDQSort, Tukey's Ninther, Iterative stack, and C23 Parallel Quicksort.
 - `jit_assembly.qs`: Compiler optimization level, loop `#pragma`, and generated x86-64 assembly study.
+
+## Limitação de LLC neste host
+
+O evento genérico `LLC-load-misses` (`PERF_COUNT_HW_CACHE`) não é suportado
+no AMD Ryzen 5 5600X (Zen 3) com o kernel usado, então `llc_misses` foi
+removido das listas de métricas padrão. As métricas de L1d, ciclos, IPC e
+branch misses continuam disponíveis e válidas. Medições de LLC exigiriam um
+evento cru da AMD ou um PMU uncore, o que não está implementado.

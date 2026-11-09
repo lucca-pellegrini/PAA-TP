@@ -22,5 +22,5 @@ variant v_pdq   { partition = pdq;   pivot = ninther; cutoff = 16; small_sort = 
 benchmark pmu_telemetry {
 	datasets = [d_branch_heavy, d_branch_predictable];
 	variants = [v_hoare, v_pdq];
-	metrics = [monotonic_ns, cycles, instructions, branches, branch_misses, l1d_misses, llc_misses];
+	metrics = [monotonic_ns, cycles, instructions, branches, branch_misses, l1d_misses];
 }

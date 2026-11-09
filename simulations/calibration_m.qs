@@ -38,6 +38,6 @@ variant m_64 { partition = hoare; pivot = last; cutoff = 64; small_sort = insert
 benchmark calibration_m {
 	datasets = [cal_random, cal_partial, cal_repeated];
 	variants = [m_00, m_04, m_08, m_10, m_12, m_16, m_20, m_24, m_30, m_40, m_50, m_64];
-	metrics = [monotonic_ns, comparisons, swaps, moves, cycles, instructions, branch_misses, l1d_misses, llc_misses];
+	metrics = [monotonic_ns, comparisons, swaps, moves, cycles, instructions, branch_misses, l1d_misses];
 	output_csv = "report/data/calibration_m.csv";
 }

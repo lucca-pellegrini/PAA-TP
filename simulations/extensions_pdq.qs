@@ -94,6 +94,6 @@ variant parallel_6t {
 benchmark extensions_pdq {
 	datasets = [ext_random, ext_repeated, ext_organ_pipe, ext_killer_med3, ext_partial_80];
 	variants = [hoare_med3, hoare_iter, three_way_med3, ninther_hybrid, pdq_sort, parallel_4t, parallel_6t];
-	metrics = [monotonic_ns, comparisons, swaps, moves, cycles, instructions, branches, branch_misses, l1d_misses, llc_misses];
+	metrics = [monotonic_ns, comparisons, swaps, moves, cycles, instructions, branches, branch_misses, l1d_misses];
 	output_csv = "report/data/extensions_pdq.csv";
 }

@@ -22,5 +22,5 @@ variant hoare_cold {
 benchmark cold_cache_study {
 	datasets = [d_cache_probe];
 	variants = [hoare_cold];
-	metrics = [monotonic_ns, cycles, instructions, l1d_misses, llc_misses];
+	metrics = [monotonic_ns, cycles, instructions, l1d_misses];
 }
