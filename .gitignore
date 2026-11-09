@@ -42,3 +42,5 @@ calc2-tp1/
 # Generated campaign data (regenerate via `quicksort`)
 report/data/*.csv
 pgo-train.log
+report/data/host_info.tex
+report/data/values.tex
