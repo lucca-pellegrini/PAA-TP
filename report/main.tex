@@ -23,6 +23,8 @@
 \usepackage[hidelinks]{hyperref}
 \usepackage[brazilian,capitalize,nameinlink]{cleveref}
 
+\input{data/values.tex}
+
 \sloppy
 
 \embedfile[
@@ -54,8 +56,7 @@
 \maketitle
 
 \begin{resumo}
-	% TODO(fase 6): resumo estruturado do artigo
-	Este artigo apresenta uma análise experimental e microarquitetural exaustiva de variantes do algoritmo Quicksort implementadas no padrão C23. Avaliam-se estratégias de particionamento, seleção de pivô, híbridos com ordenações por inserção, execução iterativa e paralela em thread pool, e compilação JIT de loops otimizados.
+	Este artigo apresenta uma análise experimental e microarquitetural exaustiva de variantes do algoritmo Quicksort implementadas no padrão C23. Avaliam-se estratégias de particionamento, seleção de pivô, híbridos com ordenações por inserção, salvaguardas adaptativas contra piores casos, execução iterativa e paralela em thread pool, e o impacto de compilação JIT e diretivas de laço sobre a microarquitetura AMD Zen 3.
 \end{resumo}
 
 \section{Introdução}\label{sec:intro}
@@ -124,7 +125,7 @@ Os experimentos cobrem um espectro abrangente de distribuições geradas a parti
 	\item \textbf{Álgebra de Vetores:} A linguagem de simulação DSL (\texttt{*.qs}) oferece operadores de composição: concatenação (\texttt{++}), intercalação (\texttt{**}), mistura estocástica (\texttt{\textasciicircum}), inversão (\texttt{\textasciitilde}) e fatiamento (\texttt{slice}).
 \end{itemize}
 
-O conjunto experimental contempla a matriz canônica do projeto (Tradicional, Híbrido com pivô central e Híbrido com Mediana de Três) e variantes contemporâneas: Lomuto, Hoare, 3-Way (Bentley-McIlroy), PDQSort, Ninther de Tukey, execução iterativa em pilha explícita no heap, eliminação de cauda (\textit{tail-call}) e paralelismo por \textit{thread pool} com 4 e 6 threads de trabalho.
+O conjunto experimental contempla a matriz canônica do projeto (Tradicional, Híbrido e Híbrido com Mediana de Três) e variantes contemporâneas: Lomuto, Hoare, 3-Way (Bentley-McIlroy), PDQSort, Ninther de Tukey, execução iterativa em pilha explícita no heap, eliminação de cauda (\textit{tail-call}) e paralelismo por \textit{thread pool} com 4 e 6 threads de trabalho.
 
 \subsection{Ambiente de Medição}\label{sec:ambiente}
 
@@ -174,42 +175,169 @@ O arcabouço opera sob modelo híbrido:
 
 \section{Resultados e Discussão}\label{sec:resultados}
 
-% TODO(fase 6): análise dos resultados experimentais obtidos nas campanhas de simulação.
+Esta seção apresenta os resultados empíricos coletados em \ValTotalConfigs\ configurações de teste no ambiente caracterizado na \cref{tab:host-info}. Todas as execuções foram validadas quanto à integridade da ordenação (\texttt{sorted\_ok = \ValSortedOkVal} em \ValSortedOkPct\% dos ensaios) e submetidas a protocolo de isolamento com afinidade estática de núcleos (\textit{core pinning}) e expurgo total de cache ($\ValCachePurgeMultiplier\times\text{LLC} = \ValCachePurgeMib\text{ MiB}$) entre repetições.
 
 \subsection{Calibração Empírica do Ponto de Corte}\label{sec:res-calibracao-m}
 
-% TODO(fase 6): discussão dos resultados da calibração de M e trade-offs de cache.
+A \cref{fig:calibracao-m} ilustra o comportamento do tempo médio de execução em função do limiar de corte $M \in [\ValCalMinM, \ValCalMaxM]$ sobre as cargas \texttt{cal\_random}, \texttt{cal\_partial} (fator de ordenação $\ValCalPartialFactor$) e \texttt{cal\_repeated} (\ValCalRepeatedKeys\ chaves únicas) para dimensões $N = \ValCalNSmall$ e $N = \ValCalNLarge$ (\texttt{calibration\_m.csv}).
+
+\input{figures/fig_calibration_m.tex}
+
+Em $M = \ValCalMZero$ (Quicksort puro, sem comutação para inserção na base), o algoritmo incorre na sobrecarga máxima de chamadas recursivas sobre subvetores unitários, consumindo $\ValCalRandMZeroMs\text{ ms}$ em $N = \ValCalNLarge$ sob dados aleatórios. A introdução de cortes pequenos ($M \in [\ValCalMCutSmallMin, \ValCalMCutSmallMax]$) atenua a profundidade recursiva, registrando $\ValCalRandMSixteenMs\text{ ms}$ em $M = \ValCalMSixteen$ (ganho de $\ValCalRandGainSixteenPct\%$).
+
+À medida que $M$ alcança o intervalo $[\ValCalPlateauMin, \ValCalPlateauMax]$, consolida-se um platô de mínimo desempenho, registrando $\ValCalRandMFiftyMs\text{ ms}$ em $M = \ValCalMFifty$ (redução de $\ValCalRandGainFiftyPct\%$ frente a $M = \ValCalMZero$). A análise estatística sobre as \ValCalNumCells\ células fatoriais (\ValCalNumDists\ distribuições $\times$ \ValCalNumSizes\ tamanhos) atesta que $M = \ValCalMFifty$ é o mínimo estrito (\textit{argmin}) em \ValCalArgminFiftyCount\ das \ValCalNumCells\ configurações (\texttt{cal\_random} em \ValCalNSmallK\ e \ValCalNLargeK, \texttt{cal\_partial} em \ValCalNLargeK\ e \texttt{cal\_repeated} em \ValCalNSmallK). Nas duas células restantes (\texttt{cal\_partial} em \ValCalNSmallK\ e \texttt{cal\_repeated} em \ValCalNLargeK), onde $M=\ValCalMSixtyFour$ foi o mínimo numérico ($\ValCalPartMSixtyFourTenKMs\text{ ms}$ e $\ValCalRepMSixtyFourFiftyKMs\text{ ms}$), a diferença em relação a $M=\ValCalMFifty$ ($\ValCalPartMFiftyTenKMs\text{ ms}$ e $\ValCalRepMFiftyFiftyKMs\text{ ms}$) é de $\ValCalDiffPartTenKMs\text{ ms}$ e $\ValCalDiffRepFiftyKMs\text{ ms}$, valores que se situam rigorosamente dentro do intervalo de confiança de \ValCalConfPct\% ($\text{IC}_{\ValCalConfPct\%}$ com semi-larguras de $\pm \ValCalCiPartTenKMs\text{ ms}$ e $\pm \ValCalCiRepFiftyKMs\text{ ms}$). Sob ruído amostral, qualquer corte na faixa $[\ValCalPlateauMin, \ValCalPlateauMax]$ é estatisticamente indistinguível. Justifica-se, assim, a fixação de $M^* = \ValCalMFifty$ de maneira padronizada em todos os experimentos híbridos subsequentes.
 
 \subsection{Matriz Canônica de Desempenho}\label{sec:res-matriz-tp}
 
-% TODO(fase 6): resultados comparativos da matriz oficial do trabalho prático.
+A \cref{tab:tp-official-50k} consolida a matriz obrigatória do Trabalho Prático para $n = \ValCalNLarge$ (\texttt{tp\_official.csv}), confrontando as variantes Tradicional (\texttt{trad}, Lomuto com pivô fixo no último elemento e $M=\ValCalMZero$), Híbrido (\texttt{hybrid}, Lomuto com $M=\ValCalMFifty$) e Híbrido com Mediana de Três (\texttt{hybrid\_med3}, partição de Lomuto com mediana de três e $M=\ValCalMFifty$). A \cref{fig:scaling-tp} ilustra a escalabilidade temporal correspondente em escala log-log para $n \in \{\ValTpScalingNOne, \ValTpScalingNTwo, \ValTpScalingNThree, \ValTpScalingNFour\}$.
+
+\begin{table}[htbp]
+\centering
+\scriptsize
+\setlength{\tabcolsep}{2.2pt}
+\caption{Matriz canônica de desempenho em $n = \ValCalNLarge$ (\texttt{tp\_official.csv}). A marcação $\dagger$ sinaliza estouro de profundidade recursiva ($d \ge \ValTpDepthLimit$) com chaveamento para Heapsort.}
+\label{tab:tp-official-50k}
+\begin{tabular}{@{}l rr rr rr l@{}}
+\toprule
+& \multicolumn{2}{c}{\textbf{Tradicional}} & \multicolumn{2}{c}{\textbf{Híbrido ($M=\ValCalMFifty$)}} & \multicolumn{2}{c}{\textbf{Híb.+Med3 ($M=\ValCalMFifty$)}} & \\
+\cmidrule(lr){2-3}\cmidrule(lr){4-5}\cmidrule(lr){6-7}
+\textbf{Carga} & \textbf{Tempo (ms)} & \textbf{Comparações} & \textbf{Tempo (ms)} & \textbf{Comparações} & \textbf{Tempo (ms)} & \textbf{Comparações} & \textbf{Estouro ($d\ge \ValTpDepthLimit$)} \\
+\midrule
+\texttt{random} & \ValTpRandTradMs & \ValTpRandTradCmp & \ValTpRandHybMs & \ValTpRandHybCmp & \ValTpRandMedMs & \ValTpRandMedCmp & Não \\
+\texttt{sorted} & \ValTpSortTradMs & \ValTpSortTradCmp & \ValTpSortHybMs & \ValTpSortHybCmp & \ValTpSortMedMs & \ValTpSortMedCmp & Trad$^\dagger$, Hyb$^\dagger$ \\
+\texttt{reverse} & \ValTpRevTradMs & \ValTpRevTradCmp & \ValTpRevHybMs & \ValTpRevHybCmp & \ValTpRevMedMs & \ValTpRevMedCmp & Trad$^\dagger$, Hyb$^\dagger$ \\
+\texttt{repeated} & \ValTpRepTradMs & \ValTpRepTradCmp & \ValTpRepHybMs & \ValTpRepHybCmp & \ValTpRepMedMs & \ValTpRepMedCmp & Todos$^\dagger$ \\
+\texttt{worst\_case} & \ValTpWorstTradMs & \ValTpWorstTradCmp & \ValTpWorstHybMs & \ValTpWorstHybCmp & \ValTpWorstMedMs & \ValTpWorstMedCmp & Trad$^\dagger$, Hyb$^\dagger$ \\
+\texttt{worst\_case\_med3} & \ValTpWorstMedTradMs & \ValTpWorstMedTradCmp & \ValTpWorstMedHybMs & \ValTpWorstMedHybCmp & \ValTpWorstMedMedMs & \ValTpWorstMedMedCmp & Todos$^\dagger$ \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\input{figures/fig_scaling_tp.tex}
+
+Em vetores aleatórios (\texttt{random}), a hibridização proporciona redução consistente no tempo de execução: em $n=\ValCalNLarge$, a variante \texttt{hybrid} obtém $\ValTpRandHybMs\text{ ms}$ frente a $\ValTpRandTradMs\text{ ms}$ do \texttt{trad} (aceleração de $\ValTpRandHybSpeedupPct\%$). Essa economia decorre da eliminação da sobrecarga de chamadas de função e do processamento em laço denso de inserção, mesmo ocorrendo aumento de $\ValTpRandHybCmpIncPct\%$ nas comparações ($\ValTpRandHybCmp$ contra $\ValTpRandTradCmp$). A variante \texttt{hybrid\_med3} atinge $\ValTpRandMedMs\text{ ms}$ com $\ValTpRandMedCmp$ comparações, aproximando-se da cota teórica em $\ValTheoryTwo n \ln n \approx \ValTpTheoreticalCmpSci\times \ValTheoryTenToSix$.
+
+\noindent\textbf{Ocorrência Mandatória de Estouro de Profundidade (\textit{depth\_exceeded}):} Um resultado fundamental reportado pelo arcabouço é o disparo da salvaguarda de recursão em exatamente \ValTpDepthExceededTotal\ configurações experimentais da matriz oficial (\texttt{tp\_official.csv}). As variantes da matriz adotam partição de Lomuto, isolando o impacto do pivô e do corte $M$. Sob distribuições ordenadas (\texttt{sorted}), invertidas (\texttt{reverse}) ou adversariais para pivô fixo (\texttt{worst\_case}), o pivô fixo no último elemento em \texttt{trad} e \texttt{hybrid} subtrai apenas um único elemento por partição, gerando profundidade recursiva linear $\Theta(n)$. Ao atingir o limite estático de segurança configurado na DSL (\texttt{max\_depth = \ValTpDepthLimit}), o mecanismo de introsort comuta deterministicamente para o Heapsort (\texttt{qs\_heapsort}), evitando o estouro da pilha de execução de \ValTpStackLimitMib\ MiB e preservando a corretude da ordenação.
+O fenômeno ocorre em:
+(i) \texttt{sorted}: $n \in \{\ValTpScalingNTwo, \ValTpScalingNThree, \ValTpScalingNFour\}$ para \texttt{trad} e \texttt{hybrid} (\ValTpSortedDepthCount\ linhas);
+(ii) \texttt{reverse}: $n \in \{\ValTpScalingNTwo, \ValTpScalingNThree, \ValTpScalingNFour\}$ para \texttt{trad} e \texttt{hybrid} (\ValTpReverseDepthCount\ linhas);
+(iii) \texttt{worst\_case}: $n \in \{\ValTpScalingNTwo, \ValTpScalingNThree, \ValTpScalingNFour\}$ para \texttt{trad} e \texttt{hybrid} (\ValTpWorstDepthCount\ linhas);
+(iv) \texttt{repeated}: $n = \ValCalNLarge$ para \texttt{trad}, \texttt{hybrid} e \texttt{hybrid\_med3} (\ValTpRepeatedDepthCount\ linhas, pois o particionamento de Lomuto não isola chaves repetidas e degenera para profundidade linear mesmo com mediana de três); e
+(v) \texttt{worst\_case\_med3}: $n = \ValCalNSmall$ para \texttt{trad} e \texttt{hybrid} (\ValTpWorstMedTenKDepthCount\ linhas) e $n = \ValCalNLarge$ para \texttt{trad}, \texttt{hybrid} e \texttt{hybrid\_med3} (\ValTpWorstMedFiftyKDepthCount\ linhas, totalizando \ValTpWorstMedDepthCount\ linhas).
+Totalizam-se rigorosamente \ValTpDepthExceededTotal\ linhas com \texttt{depth\_exceeded = \ValSortedOkVal}. Em $n=\ValCalNLarge$ sob \texttt{sorted}, \texttt{trad} e \texttt{hybrid} demandam $\ValTpSortTradCmp$ comparações e $\approx \ValTpSortedTradMsApprox\text{ ms}$. Em contraste, \texttt{hybrid\_med3} seleciona a mediana exata no centro do vetor, completando a ordenação em apenas $\ValTpSortMedMs\text{ ms}$ com $\ValTpSortMedCmp$ comparações --- redução de $\ValTpSortMedCmpRedPct\%$ nas operações e ganho de $\ValTpSortMedSpeedupX\times$ em tempo.
 
 \subsection{Sensibilidade a Piores Casos e Adversários}\label{sec:res-worst-case}
 
-% TODO(fase 6): comportamento sob entradas patológicas e vetores do assassino de mediana-de-3.
+Embora a mediana de três neutralize o pior caso trivial de arranjos pré-ordenados, ela permanece suscetível a adversários determinísticos projetados contra a regra de três pontos. O experimento com o vetor assassino de McIlroy (\texttt{ext\_killer\_med3} em \texttt{extensions\_pdq.csv}) demonstra esse colapso: para $n = \ValCalNLarge$, a variante \texttt{hoare\_med3} sofre degradação patológica para $\approx n^2/\ValExtKillerTheoryDenom$, realizando $\ValExtKillerHoareComps$ comparações e despendendo $\ValExtKillerHoareMs\text{ ms}$ (ou $\ValExtKillerIterMs\text{ ms}$ em execução iterativa com pilha explícita).
+
+Em contrapartida, o seletor \textit{ninther} de Tukey (\texttt{ninther\_hybrid}) e o algoritmo adaptativo PDQSort (\texttt{pdq\_sort}) neutralizam totalmente o ataque. Ao computar a mediana de três medianas de três elementos amostrados, o ninther quebra os empates simétricos orquestrados pelo adversário: o tempo de execução cai para $\ValExtKillerNintherMs\text{ ms}$ com $\ValExtKillerNintherComps$ comparações no \texttt{ninther\_hybrid}, e $\ValExtKillerPdqMs\text{ ms}$ com $\ValExtKillerPdqComps$ comparações no \texttt{pdq\_sort}. Ambas as variantes preservam o regime linear-logarítmico, operando mais de $\ValExtKillerSpeedupX\times$ mais rápido que a mediana de três.
+
+Padrão análogo manifesta-se sob a distribuição em tubo de órgão (\texttt{ext\_organ\_pipe}): em $n=\ValCalNLarge$, \texttt{pdq\_sort} ($\ValExtOrganPdqMs\text{ ms}$, $\ValExtOrganPdqComps$ comparações) e \texttt{ninther\_hybrid} ($\ValExtOrganNintherMs\text{ ms}$, $\ValExtOrganNintherComps$ comparações) superam substancialmente o particionamento de Hoare clássico ($\ValExtOrganHoareMs\text{ ms}$, $\ValExtOrganHoareComps$ comparações) e o 3-Way não adaptativo ($\ValExtOrganThreeWayMs\text{ ms}$, $\ValExtOrganThreeWayComps$ comparações).
 
 \subsection{Variantes Avançadas: 3-Way, PDQSort e Ninther}\label{sec:res-avancadas}
 
-% TODO(fase 6): desempenho do particionamento Bentley-McIlroy, PDQSort e pivô ninther.
+Sob cargas de chaves repetidas com poucas chaves distintas (\texttt{ext\_repeated} em $n = \ValCalNLarge$), o particionamento ternário de Bentley-McIlroy (\texttt{three\_way\_med3}) e o PDQSort (\texttt{pdq\_sort}) demonstram superioridade assintótica frente ao Quicksort clássico de duas vias. Enquanto \texttt{hoare\_med3} particiona elementos iguais em subintervalos subsequentes ($\ValExtRepHoareMs\text{ ms}$ e $\ValExtRepHoareComps$ comparações), o particionamento ternário agrega todas as chaves equivalentes ao pivô em um bloco central contíguo em uma única passada. Como consequência, \texttt{three\_way\_med3} e \texttt{pdq\_sort} reduzem as comparações para $\ValExtRepThreeWayComps$ e $\ValExtRepPdqComps$ respectivamente (redução de $\ValExtRepCmpRedRatio\times$), concluindo a ordenação em $\ValExtRepThreeWayMs\text{ ms}$ e $\ValExtRepPdqMs\text{ ms}$ (aceleração de $\ValExtRepSpeedupRatio\times$).
+
+Em dados puramente aleatórios (\texttt{ext\_random}, $n = \ValCalNLarge$), a complexidade adicional das trocas e ponteiros do particionamento 3-Way acarreta sobrecarga moderada: \texttt{three\_way\_med3} consome $\ValExtRandThreeWayMs\text{ ms}$ e $\ValExtRandThreeWayComps$ comparações, frente a $\ValExtRandHoareMs\text{ ms}$ e $\ValExtRandHoareComps$ comparações do \texttt{hoare\_med3} (acréscimo de $\ValExtRandThreeWayOverheadPct\%$ no tempo). Já o PDQSort, por detectar adaptativamente a ausência de duplicatas, mantém-se competitivo em $\ValExtRandPdqMs\text{ ms}$ com apenas $\ValExtRandPdqComps$ comparações. Sob o vetor patológico de McIlroy (\texttt{ext\_killer\_med3}), como demonstrado, \texttt{pdq\_sort} ($\ValExtKillerPdqMs\text{ ms}$, $\ValExtKillerPdqComps$ comparações) e \texttt{ninther\_hybrid} ($\ValExtKillerNintherMs\text{ ms}$, $\ValExtKillerNintherComps$ comparações) superam o colapso quadrático de \texttt{hoare\_med3} ($\ValExtKillerHoareMsFull\text{ ms}$, $\ValExtKillerHoareComps$ comparações) em mais de $\ValExtKillerSpeedupX\times$. Em tubo de órgão (\texttt{ext\_organ\_pipe}), \texttt{pdq\_sort} ($\ValExtOrganPdqMs\text{ ms}$) e \texttt{ninther\_hybrid} ($\ValExtOrganNintherMs\text{ ms}$) superam \texttt{hoare\_med3} ($\ValExtOrganHoareMs\text{ ms}$) e \texttt{three\_way\_med3} ($\ValExtOrganThreeWayMs\text{ ms}$).
 
 \subsection{Modelos de Execução: Pilha Explícita e Paralelismo}\label{sec:res-execucao}
 
-% TODO(fase 6): comparação entre recursão, eliminação de cauda, pilha iterativa e thread pool.
+O confronto entre a implementação recursiva com eliminação de chamada de cauda (\texttt{hoare\_med3}) e a execução iterativa com pilha explícita alocada em heap (\texttt{hoare\_iter}) comprova a maturidade do compilador Clang com `-O3`. Em todas as cargas e dimensões, os contadores de comparações ($\ValExtRandHoareIterComps$) e trocas ($\ValExtRandHoareSwaps$) são rigorosamente idênticos, e a variação no tempo de execução em $n=\ValCalNLarge$ sob \texttt{ext\_random} é de apenas $\ValExtRandIterDiffPct\%$ ($\ValExtRandHoareMs\text{ ms}$ contra $\ValExtRandIterMs\text{ ms}$), caracterizando equivalência operacional estrita e ausência de penalidade residual de chamada.
+
+A avaliação do \textit{thread pool} C23 nativo com afinidade estática de núcleos (\texttt{sched\_setaffinity}) evidencia ganhos substanciais de vazão. Em $n = \ValCalNLarge$ sobre \texttt{ext\_random}, o paralelismo de tarefas reduz o tempo de $\ValExtRandHoareMs\text{ ms}$ (serial) para $\ValExtRandParallelFourMs\text{ ms}$ com \ValParThreadsFour\ threads de trabalho (\texttt{parallel\_4t}), alcançando \textit{speedup} de $\ValExtRandParallelFourSpeedup\times$ (eficiência paralela de $\ValExtRandParallelFourEff\%$). Com \ValParThreadsSix\ threads (\texttt{parallel\_6t}), o tempo foi de $\ValExtRandParallelSixMs\text{ ms}$ ($\ValExtRandParallelSixSpeedup\times$), refletindo a contenção no despachante de tarefas para matrizes de granularidade média. Contudo, ao expandir a dimensão para $n = \ValCalNHundredK$, a sobrecarga de sincronização dilui-se: \texttt{parallel\_4t} atinge $\ValExtRandHundredKParFourMs\text{ ms}$ ($\ValExtRandHundredKParFourSpeedup\times$) e \texttt{parallel\_6t} atinge $\ValExtRandHundredKParSixMs\text{ ms}$ ($\ValExtRandHundredKParSixSpeedup\times$ frente aos $\ValExtRandHundredKSerialMs\text{ ms}$ do kernel serial). Em vetores parcialmente ordenados (\texttt{ext\_partial\_80}, $n=\ValCalNLarge$), o tempo decresce de $\ValExtPartEightySerialMs\text{ ms}$ para $\ValExtPartEightyParFourMs\text{ ms}$ ($\ValExtPartEightyParFourSpeedup\times$ em \ValParThreadsFour\ threads), demonstrando a eficácia da partição balanceada concorrente.
 
 \subsection{Telemetria Microarquitetural e Análise de Assembly}\label{sec:res-micro-jit}
 
-% TODO(fase 6): correlação de IPC, branch mispredictions, cache misses e impacto de pragmas/flags.
+A telemetria via PMU revela a estrita interdependência entre entropia dos dados, previsibilidade de saltos e instruções executadas por ciclo (IPC). Sob cargas aleatórias (\texttt{ext\_random}), as comparações de partição tomam caminhos com probabilidade próxima a $\ValExtRandPathProbPct\%$, acarretando taxas de erro de predição de desvios na faixa de $\ValExtRandBranchMissMinPct\%$ a $\ValExtRandBranchMissMaxPct\%$. Cada erro gera um descarte de pipeline de \ValZenDiscardCyclesMin\ a \ValZenDiscardCyclesMax\ ciclos no núcleo Zen~\ValZenArchGeneration, limitando o IPC a valores entre $\ValExtRandIpcMin$ e $\ValExtRandIpcMax$ (típico $\ValExtRandIpcTypMin$ a $\ValExtRandIpcTypMax$).
+
+Em contrapartida, sob arranjos com regularidade (\texttt{ext\_organ\_pipe}, \texttt{ext\_repeated}, \texttt{ext\_killer\_med3} e \texttt{jit\_sorted}), os preditores de salto convergem rapidamente, reduzindo a taxa de falhas para menos de $\ValPmuRegularBranchMissCutoff\%$ ($\ValPmuKillerBranchMissPct\%$ no adversário de McIlroy, $\ValPmuSortedBranchMissPct\%$ no vetor ordenado e $\ValPmuOrganBranchMissPct\%$ no tubo de órgão). Sem a penalidade de descarte de pipeline, a microarquitetura do processador atinge taxas de IPC entre $\ValPmuRegularIpcMin$ e $\ValPmuRegularIpcMax$, operando próxima ao limite teórico de \ValPmuZenMaxDecoded\ instruções decodificadas por ciclo.
+
+\noindent\textbf{Impacto da Otimização JIT e Diretivas de Laço (\texttt{jit\_assembly.csv}):} O estudo de compilação dinâmica sob demanda revela um contraexemplo notável ao senso comum relativo ao desenrolamento de laços. Em $n = \ValCalNHundredK$ sob dados aleatórios (\texttt{jit\_random}):
+\begin{enumerate}
+\item O baseline \texttt{cflags\_o3\_native} requer $\ValJitRandOThreeMs\text{ ms}$, consumindo $\ValJitRandOThreeInst$ instruções e $\ValJitRandOThreeCycles$ ciclos (IPC $\ValJitRandOThreeIpc$ e $\ValJitRandOThreeBranchMissPct\%$ de falhas de desvio);
+\item A imposição de desenrolamento forçado via diretiva \texttt{\#pragma clang loop unroll\_count(\ValUnrollFactor)} (\texttt{pragma\_unroll\_4}) eleva o tempo para $\ValJitRandUnrollFourMs\text{ ms}$ ($+\ValJitRandUnrollFourMsIncPct\% \approx +\ValJitRandUnrollFourMsIncPctRound\%$) e amplia as instruções totais para $\ValJitRandUnrollFourInst$ ($+\ValJitRandUnrollFourInstIncPct\% \approx +\ValJitRandUnrollFourInstIncPctRound\%$).
+\end{enumerate}
+Embora o desenrolamento reduza ligeiramente a taxa de erro de salto (de $\ValJitRandOThreeBranchMissPct\%$ para $\ValJitRandUnrollFourBranchMissPct\%$), ele introduz código redundante de tratamento de resíduo (\textit{tail-loop}) e inflaciona a pegada de código, sobrecarregando a decodificação da CPU sem acelerar o avanço de ponteiros dependente de dados.
+Ademais, a desativação de vetorização (\texttt{pragma\_no\_vec}, $\ValJitRandNoVecMs\text{ ms}$) gera alteração inferior a $\ValJitRandNoVecDiffThresholdPct\%$, confirmando que laços de partição com passos variáveis e saltos condicionais bidirecionais não admitem vetorização SIMD automática. A transição entre `-O1` ($\ValJitRandOOneMs\text{ ms}$), `-O2` ($\ValJitRandOTwoMs\text{ ms}$) e `-O3` ($\ValJitRandOThreeMs\text{ ms}$) apresenta variação inferior a $\ValJitRandOptVarPct\%$, indicando saturação de otimização escalar.
+Ressalta-se que falhas de cache LLC (\texttt{mean\_llc\_misses}) permanecem nulas devido a restrições de permissão do kernel no contador genérico de hardware sob Zen~\ValZenArchGeneration, sendo omitidas da discussão conforme nota metodológica da \cref{sec:ambiente}.
+
+\subsection{Discussão Integrada e Limitações}\label{sec:res-discussao}
+
+O confronto com os modelos analíticos da literatura clássica confirma a aderência matemática do arcabouço:
+\begin{itemize}
+\item \textbf{Caso Médio:} A teoria de Hoare e Sedgewick prevê $C(n) \approx \ValTheoryTwo n \ln n \approx \ValTheoryLnFactor n \log_2 n$ comparações. Para $n = \ValCalNLarge$, a cota equivale a $\ValTheoryTwo \times \ValCalNLarge \ln(\ValCalNLarge) \approx \ValTheoryFiftyKCmp$ comparações. O resultado empírico de \texttt{hybrid\_med3} ($\ValTpRandMedCmp$ comparações) aproxima-se do valor analítico com discrepância de apenas $\ValTheoryDiscrepancyPct\%$.
+\item \textbf{Pior Caso Quadrático:} Sob partição de Lomuto com pivô fixo, a teoria estabelece $n(n-\ValTheoryOne)/\ValTheoryTwo$ comparações. Para $n = \ValTheoryOneK$, $\ValTheoryOneK \times \ValTheoryNineNineNine / \ValTheoryTwo = \ValTheoryOneKCmp$ comparações, coincidindo rigorosamente com o total medido nas cargas \texttt{sorted} e \texttt{reverse}. Para $n \ge \ValTheoryFiveK$, o acionamento da guarda de introsort ($d \ge \ValTpDepthLimit$) trunca o colapso estritamente quadrático antes da saturação da pilha.
+\item \textbf{Compensação da Hibridização:} A inserção em subvetores com $n \le \ValTheoryCutoffFifty$ substitui partições ineficientes por varreduras sequenciais de alto aproveitamento espacial, proporcionando ganho global de $\ValTheoryGainMinPct\text{--}\ValTheoryGainMaxPct\%$ no tempo a despeito do aumento moderado nas comparações.
+\end{itemize}
+
+\noindent\textbf{Limitações do Estudo:} Os ensaios foram conduzidos exclusivamente em um processador \ValHostCpuModel\ (microarquitetura Zen~\ValZenArchGeneration); os contadores de PMU operaram sob permissões de usuário não privilegiado (\texttt{perf\_event\_paranoid=\ValHostParanoidLevel}), impedindo a coleta direta de falhas de LLC; finalmente, os módulos JIT compilados dinamicamente foram carregados via \texttt{dlopen}, operando fora do alcance das otimizações interprocedurais e PGO do executável principal.
 
 \section{Conclusão}\label{sec:conclusao}
 
-% TODO(fase 6): síntese das contribuições e conclusões finais da investigação experimental.
+Este trabalho apresentou uma investigação experimental e microarquitetural de variantes do algoritmo Quicksort sob o padrão C23. A adoção da arquitetura dual-pass permitiu quantificar de forma desacoplada o esforço algorítmico exato e os eventos de baixo nível de hardware, garantindo a reprodutibilidade dos ensaios em regime rigoroso de controle de estado de cache e afinidade estática de núcleos.
+
+A calibração sistemática do limiar de corte evidenciou a formação de uma zona de ótimo estável para métodos híbridos com ordenação por inserção, justificando empiricamente a escolha de um ponto de corte robusto que maximiza o ganho de tempo sem sensibilidade a ruídos estocásticos de medição.
+
+Os experimentos de estresse e adversários comprovaram as vulnerabilidades severas de esquemas canônicos de particionamento e pivoteamento fixo, ratificando a necessidade de salvaguardas adaptativas como o particionamento ternário de Bentley-McIlroy, a amostragem por ninther e mecanismos de introsort para assegurar robustez em ambientes de produção.
+
+Por fim, a correlação entre telemetria de hardware e código gerado dinamicamente via JIT esclareceu os limites da otimização de laços no particionamento do Quicksort, demonstrando que a previsibilidade de desvios dita preponderantemente o índice de instruções por ciclo e que transformações como o desenrolamento de laços podem degradar o desempenho na presença de fluxo de controle dependente de dados.
 
 \bibliographystyle{sbc}
 \bibliography{references}
 
 \appendix
-\section{Apêndice: Tabelas Estendidas e Listagens de Assembly}\label{sec:apendice}
+\section{Apêndice: Tabelas Estendidas de Otimização JIT}\label{sec:apendice}
 
-% TODO(fase 6): listagens de código de montagem e matrizes tabulares completas.
+A \cref{tab:jit-assembly-full} apresenta os resultados completos obtidos na campanha de compilação dinâmica sob demanda (\texttt{jit\_assembly.csv}), avaliando níveis de otimização do Clang e diretivas \texttt{\#pragma} de laço sobre as cargas \texttt{jit\_random} e \texttt{jit\_sorted} nas dimensões $n \in \{\ValCalNSmall, \ValCalNLarge, \ValCalNHundredK\}$. O arquivo bruto encontra-se disponível no caminho relativo \texttt{report/data/jit\_assembly.csv}.
+
+\begin{table}[htbp]
+\centering
+\scriptsize
+\caption{Matriz experimental completa de compilação dinâmica JIT e telemetria PMU (\texttt{report/data/jit\_assembly.csv}).}
+\label{tab:jit-assembly-full}
+\begin{tabular}{lrrrrrr}
+\toprule
+\textbf{Variante JIT} & \textbf{$n$} & \textbf{Tempo (\unit{\milli\second})} & \textbf{Instruções} & \textbf{Ciclos} & \textbf{IPC} & \textbf{Falhas Desvio (\%)} \\
+\midrule\multicolumn{7}{c}{\textbf{Carga: \texttt{jit\_random}}} \\\midrule
+\texttt{-O1} & \ValCalTenKRaw & \ValJitTabRandTenKOOneMs & \ValJitTabRandTenKOOneInst & \ValJitTabRandTenKOOneCyc & \ValJitTabRandTenKOOneIpc & \ValJitTabRandTenKOOneBr\% \\
+\texttt{-O2} & \ValCalTenKRaw & \ValJitTabRandTenKOTwoMs & \ValJitTabRandTenKOTwoInst & \ValJitTabRandTenKOTwoCyc & \ValJitTabRandTenKOTwoIpc & \ValJitTabRandTenKOTwoBr\% \\
+\texttt{-O3 -march=native} (base) & \ValCalTenKRaw & \ValJitTabRandTenKOThreeMs & \ValJitTabRandTenKOThreeInst & \ValJitTabRandTenKOThreeCyc & \ValJitTabRandTenKOThreeIpc & \ValJitTabRandTenKOThreeBr\% \\
+\texttt{pragma no\_unroll} & \ValCalTenKRaw & \ValJitTabRandTenKNoUnrollMs & \ValJitTabRandTenKNoUnrollInst & \ValJitTabRandTenKNoUnrollCyc & \ValJitTabRandTenKNoUnrollIpc & \ValJitTabRandTenKNoUnrollBr\% \\
+\texttt{pragma unroll(\ValUnrollFactor)} & \ValCalTenKRaw & \ValJitTabRandTenKUnrollFourMs & \ValJitTabRandTenKUnrollFourInst & \ValJitTabRandTenKUnrollFourCyc & \ValJitTabRandTenKUnrollFourIpc & \ValJitTabRandTenKUnrollFourBr\% \\
+\texttt{pragma no\_vec} & \ValCalTenKRaw & \ValJitTabRandTenKNoVecMs & \ValJitTabRandTenKNoVecInst & \ValJitTabRandTenKNoVecCyc & \ValJitTabRandTenKNoVecIpc & \ValJitTabRandTenKNoVecBr\% \\
+\texttt{-O1} & \ValCalFiftyKRaw & \ValJitTabRandFiftyKOOneMs & \ValJitTabRandFiftyKOOneInst & \ValJitTabRandFiftyKOOneCyc & \ValJitTabRandFiftyKOOneIpc & \ValJitTabRandFiftyKOOneBr\% \\
+\texttt{-O2} & \ValCalFiftyKRaw & \ValJitTabRandFiftyKOTwoMs & \ValJitTabRandFiftyKOTwoInst & \ValJitTabRandFiftyKOTwoCyc & \ValJitTabRandFiftyKOTwoIpc & \ValJitTabRandFiftyKOTwoBr\% \\
+\texttt{-O3 -march=native} (base) & \ValCalFiftyKRaw & \ValJitTabRandFiftyKOThreeMs & \ValJitTabRandFiftyKOThreeInst & \ValJitTabRandFiftyKOThreeCyc & \ValJitTabRandFiftyKOThreeIpc & \ValJitTabRandFiftyKOThreeBr\% \\
+\texttt{pragma no\_unroll} & \ValCalFiftyKRaw & \ValJitTabRandFiftyKNoUnrollMs & \ValJitTabRandFiftyKNoUnrollInst & \ValJitTabRandFiftyKNoUnrollCyc & \ValJitTabRandFiftyKNoUnrollIpc & \ValJitTabRandFiftyKNoUnrollBr\% \\
+\texttt{pragma unroll(\ValUnrollFactor)} & \ValCalFiftyKRaw & \ValJitTabRandFiftyKUnrollFourMs & \ValJitTabRandFiftyKUnrollFourInst & \ValJitTabRandFiftyKUnrollFourCyc & \ValJitTabRandFiftyKUnrollFourIpc & \ValJitTabRandFiftyKUnrollFourBr\% \\
+\texttt{pragma no\_vec} & \ValCalFiftyKRaw & \ValJitTabRandFiftyKNoVecMs & \ValJitTabRandFiftyKNoVecInst & \ValJitTabRandFiftyKNoVecCyc & \ValJitTabRandFiftyKNoVecIpc & \ValJitTabRandFiftyKNoVecBr\% \\
+\texttt{-O1} & \ValCalHundredKRaw & \ValJitTabRandHundredKOOneMs & \ValJitTabRandHundredKOOneInst & \ValJitTabRandHundredKOOneCyc & \ValJitTabRandHundredKOOneIpc & \ValJitTabRandHundredKOOneBr\% \\
+\texttt{-O2} & \ValCalHundredKRaw & \ValJitTabRandHundredKOTwoMs & \ValJitTabRandHundredKOTwoInst & \ValJitTabRandHundredKOTwoCyc & \ValJitTabRandHundredKOTwoIpc & \ValJitTabRandHundredKOTwoBr\% \\
+\texttt{-O3 -march=native} (base) & \ValCalHundredKRaw & \ValJitTabRandHundredKOThreeMs & \ValJitTabRandHundredKOThreeInst & \ValJitTabRandHundredKOThreeCyc & \ValJitTabRandHundredKOThreeIpc & \ValJitTabRandHundredKOThreeBr\% \\
+\texttt{pragma no\_unroll} & \ValCalHundredKRaw & \ValJitTabRandHundredKNoUnrollMs & \ValJitTabRandHundredKNoUnrollInst & \ValJitTabRandHundredKNoUnrollCyc & \ValJitTabRandHundredKNoUnrollIpc & \ValJitTabRandHundredKNoUnrollBr\% \\
+\texttt{pragma unroll(\ValUnrollFactor)} & \ValCalHundredKRaw & \ValJitTabRandHundredKUnrollFourMs & \ValJitTabRandHundredKUnrollFourInst & \ValJitTabRandHundredKUnrollFourCyc & \ValJitTabRandHundredKUnrollFourIpc & \ValJitTabRandHundredKUnrollFourBr\% \\
+\texttt{pragma no\_vec} & \ValCalHundredKRaw & \ValJitTabRandHundredKNoVecMs & \ValJitTabRandHundredKNoVecInst & \ValJitTabRandHundredKNoVecCyc & \ValJitTabRandHundredKNoVecIpc & \ValJitTabRandHundredKNoVecBr\% \\
+\midrule\multicolumn{7}{c}{\textbf{Carga: \texttt{jit\_sorted}}} \\\midrule
+\texttt{-O1} & \ValCalTenKRaw & \ValJitTabSortTenKOOneMs & \ValJitTabSortTenKOOneInst & \ValJitTabSortTenKOOneCyc & \ValJitTabSortTenKOOneIpc & \ValJitTabSortTenKOOneBr\% \\
+\texttt{-O2} & \ValCalTenKRaw & \ValJitTabSortTenKOTwoMs & \ValJitTabSortTenKOTwoInst & \ValJitTabSortTenKOTwoCyc & \ValJitTabSortTenKOTwoIpc & \ValJitTabSortTenKOTwoBr\% \\
+\texttt{-O3 -march=native} (base) & \ValCalTenKRaw & \ValJitTabSortTenKOThreeMs & \ValJitTabSortTenKOThreeInst & \ValJitTabSortTenKOThreeCyc & \ValJitTabSortTenKOThreeIpc & \ValJitTabSortTenKOThreeBr\% \\
+\texttt{pragma no\_unroll} & \ValCalTenKRaw & \ValJitTabSortTenKNoUnrollMs & \ValJitTabSortTenKNoUnrollInst & \ValJitTabSortTenKNoUnrollCyc & \ValJitTabSortTenKNoUnrollIpc & \ValJitTabSortTenKNoUnrollBr\% \\
+\texttt{pragma unroll(\ValUnrollFactor)} & \ValCalTenKRaw & \ValJitTabSortTenKUnrollFourMs & \ValJitTabSortTenKUnrollFourInst & \ValJitTabSortTenKUnrollFourCyc & \ValJitTabSortTenKUnrollFourIpc & \ValJitTabSortTenKUnrollFourBr\% \\
+\texttt{pragma no\_vec} & \ValCalTenKRaw & \ValJitTabSortTenKNoVecMs & \ValJitTabSortTenKNoVecInst & \ValJitTabSortTenKNoVecCyc & \ValJitTabSortTenKNoVecIpc & \ValJitTabSortTenKNoVecBr\% \\
+\texttt{-O1} & \ValCalFiftyKRaw & \ValJitTabSortFiftyKOOneMs & \ValJitTabSortFiftyKOOneInst & \ValJitTabSortFiftyKOOneCyc & \ValJitTabSortFiftyKOOneIpc & \ValJitTabSortFiftyKOOneBr\% \\
+\texttt{-O2} & \ValCalFiftyKRaw & \ValJitTabSortFiftyKOTwoMs & \ValJitTabSortFiftyKOTwoInst & \ValJitTabSortFiftyKOTwoCyc & \ValJitTabSortFiftyKOTwoIpc & \ValJitTabSortFiftyKOTwoBr\% \\
+\texttt{-O3 -march=native} (base) & \ValCalFiftyKRaw & \ValJitTabSortFiftyKOThreeMs & \ValJitTabSortFiftyKOThreeInst & \ValJitTabSortFiftyKOThreeCyc & \ValJitTabSortFiftyKOThreeIpc & \ValJitTabSortFiftyKOThreeBr\% \\
+\texttt{pragma no\_unroll} & \ValCalFiftyKRaw & \ValJitTabSortFiftyKNoUnrollMs & \ValJitTabSortFiftyKNoUnrollInst & \ValJitTabSortFiftyKNoUnrollCyc & \ValJitTabSortFiftyKNoUnrollIpc & \ValJitTabSortFiftyKNoUnrollBr\% \\
+\texttt{pragma unroll(\ValUnrollFactor)} & \ValCalFiftyKRaw & \ValJitTabSortFiftyKUnrollFourMs & \ValJitTabSortFiftyKUnrollFourInst & \ValJitTabSortFiftyKUnrollFourCyc & \ValJitTabSortFiftyKUnrollFourIpc & \ValJitTabSortFiftyKUnrollFourBr\% \\
+\texttt{pragma no\_vec} & \ValCalFiftyKRaw & \ValJitTabSortFiftyKNoVecMs & \ValJitTabSortFiftyKNoVecInst & \ValJitTabSortFiftyKNoVecCyc & \ValJitTabSortFiftyKNoVecIpc & \ValJitTabSortFiftyKNoVecBr\% \\
+\texttt{-O1} & \ValCalHundredKRaw & \ValJitTabSortHundredKOOneMs & \ValJitTabSortHundredKOOneInst & \ValJitTabSortHundredKOOneCyc & \ValJitTabSortHundredKOOneIpc & \ValJitTabSortHundredKOOneBr\% \\
+\texttt{-O2} & \ValCalHundredKRaw & \ValJitTabSortHundredKOTwoMs & \ValJitTabSortHundredKOTwoInst & \ValJitTabSortHundredKOTwoCyc & \ValJitTabSortHundredKOTwoIpc & \ValJitTabSortHundredKOTwoBr\% \\
+\texttt{-O3 -march=native} (base) & \ValCalHundredKRaw & \ValJitTabSortHundredKOThreeMs & \ValJitTabSortHundredKOThreeInst & \ValJitTabSortHundredKOThreeCyc & \ValJitTabSortHundredKOThreeIpc & \ValJitTabSortHundredKOThreeBr\% \\
+\texttt{pragma no\_unroll} & \ValCalHundredKRaw & \ValJitTabSortHundredKNoUnrollMs & \ValJitTabSortHundredKNoUnrollInst & \ValJitTabSortHundredKNoUnrollCyc & \ValJitTabSortHundredKNoUnrollIpc & \ValJitTabSortHundredKNoUnrollBr\% \\
+\texttt{pragma unroll(\ValUnrollFactor)} & \ValCalHundredKRaw & \ValJitTabSortHundredKUnrollFourMs & \ValJitTabSortHundredKUnrollFourInst & \ValJitTabSortHundredKUnrollFourCyc & \ValJitTabSortHundredKUnrollFourIpc & \ValJitTabSortHundredKUnrollFourBr\% \\
+\texttt{pragma no\_vec} & \ValCalHundredKRaw & \ValJitTabSortHundredKNoVecMs & \ValJitTabSortHundredKNoVecInst & \ValJitTabSortHundredKNoVecCyc & \ValJitTabSortHundredKNoVecIpc & \ValJitTabSortHundredKNoVecBr\% \\
+\bottomrule
+\end{tabular}
+\end{table}
 
 \end{document}
