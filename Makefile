@@ -55,7 +55,7 @@ $(OBJ_DIR) $(DEP_DIR) $(GEN_DIR) $(JIT_DIR) $(BUILD_DIR):
 	mkdir -p $@
 
 tui: | $(BUILD_DIR)
-	cd tui && bun install && zig build -Doptimize=ReleaseFast
+	cd tui && bun install && zig build -Drelease
 	cp -f tui/zig-out/lib/libqs_tui.so $(BUILD_DIR)/libqs_tui.so
 
 test: $(GEN_H) $(GEN_C)
