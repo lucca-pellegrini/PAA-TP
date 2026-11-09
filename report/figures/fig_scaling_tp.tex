@@ -16,8 +16,8 @@
 \centering
 \begin{tikzpicture}
 \begin{axis}[
-    width=0.88\linewidth,
-    height=4.4cm,
+    width=0.92\columnwidth,
+    height=8.4cm,
     xmode=log,
     ymode=log,
     log basis x={10},
@@ -32,8 +32,17 @@
     label style={font=\scriptsize},
     grid=major,
     grid style={dashed, gray!30},
-    legend pos=north west,
-    legend style={font=\tiny, fill=white, fill opacity=0.85, draw=gray!40},
+    legend style={
+        at={(0.5, 1.03)},
+        anchor=south,
+        legend columns=3,
+        legend cell align=left,
+        font=\scriptsize,
+        fill=white,
+        fill opacity=0.9,
+        draw=gray!40,
+        /tikz/every even column/.append style={column sep=0.5em}
+    },
     unbounded coords=discard
 ]
 \addplot[color=blue!80!black, mark=square*, mark size=1.1pt, semithick]
@@ -96,7 +105,8 @@
     ] {data/tp_official.csv};
 \addlegendentry{\texttt{worst\_med3} -- Híb.+Med3 ($M=50$)}
 
-\node[font=\tiny\bfseries, text=red!80!black, anchor=west] at (axis cs:5500,10.5) {$\dagger$ Fallback Heapsort ($d \ge 4096$)};
+\node[font=\scriptsize\bfseries, text=red!80!black, anchor=south east] at (axis cs:4600,16) {$\dagger$ Fallback Heapsort ($d \ge 4096$)};
+\draw[->, >=stealth, red!80!black, semithick] (axis cs:4200,15) -- (axis cs:4900,8.8);
 \end{axis}
 \end{tikzpicture}
 \vspace{-1ex}
