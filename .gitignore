@@ -38,3 +38,7 @@ ac3-tp1/
 ac3-tp2/
 aeds2-lab06/
 calc2-tp1/
+
+# Generated campaign data (regenerate via `quicksort`)
+report/data/*.csv
+pgo-train.log
