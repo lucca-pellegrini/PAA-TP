@@ -1,0 +1,215 @@
+% SPDX-License-Identifier: CC-BY-SA-4.0
+\documentclass[12pt]{article}
+
+\usepackage{sbc-template}
+
+% Workaround for sbc-template hook bug when hyperref is loaded
+\AddToHook{begindocument/before}[sbc-template]{\relax}
+
+\usepackage{graphicx,url}
+\usepackage[utf8]{inputenc}
+\usepackage[brazilian]{babel}
+\usepackage{amsmath,amssymb}
+\usepackage{booktabs}
+\usepackage{csquotes}
+\usepackage{newtxtext,newtxmath}
+\usepackage{siunitx}
+\sisetup{output-decimal-marker = {,}}
+\usepackage{pgfplots}
+\usepackage{pgfplotstable}
+\pgfplotsset{compat=1.18}
+\usepackage{microtype}
+\usepackage{embedfile}
+\usepackage[hidelinks]{hyperref}
+\usepackage[brazilian,capitalize,nameinlink]{cleveref}
+
+\sloppy
+
+\embedfile[
+	desc={LaTeX source for this document},
+	mimetype=text/plain
+]{main.tex}
+
+\embedfile[
+	desc={BibTeX source file with references},
+	mimetype=text/plain
+]{references.bib}
+
+\title{Engenharia de Algoritmos e Avaliação Microarquitetural\\de Variantes do Quicksort em C23}
+
+\author{%
+	Lucca M. A. Pellegrini,
+	Ariel Inácio Jordão
+}
+
+\address{Instituto de Ciências Exatas e Informática\\
+	Pontifícia Universidade Católica de Minas Gerais (PUC Minas)\\
+	Belo Horizonte -- MG -- Brasil
+	\email{\href{mailto:lucca@verticordia.com}{lucca@verticordia.com},
+		\href{mailto:arielijordao@gmail.com}{arielijordao@gmail.com}}
+}
+
+\begin{document}
+
+\maketitle
+
+\begin{resumo}
+	% TODO(fase 6): resumo estruturado do artigo
+	Este artigo apresenta uma análise experimental e microarquitetural exaustiva de variantes do algoritmo Quicksort implementadas no padrão C23. Avaliam-se estratégias de particionamento, seleção de pivô, híbridos com ordenações por inserção, execução iterativa e paralela em thread pool, e compilação JIT de loops otimizados.
+\end{resumo}
+
+\section{Introdução}\label{sec:intro}
+
+O algoritmo Quicksort, proposto por Hoare~\cite{Hoare1961,Hoare1962}, é um dos pilares da ciência da computação. Alicerçado no paradigma de divisão e conquista, o método particiona recursivamente um vetor em torno de um elemento pivô, alcançando complexidade média assintótica em $\mathcal{O}(n \log n)$ com baixos fatores constantes~\cite{Sedgewick1978,Knuth1998}. Contudo, na microarquitetura contemporânea, o tempo de execução é amplamente governado pela interação com pipelines profundos, predição especulativa de desvios e hierarquias multinível de cache (L1, L2 e L3/LLC). Desvios imprevisíveis causam descartes de pipeline (\textit{flushes}) com penalidades de dezenas de ciclos, enquanto acessos sem localidade espacial provocam bloqueios de memória (\textit{stalls})~\cite{EdelkampWeiss2016}.
+
+Ademais, o Quicksort clássico é suscetível a degeneração quadrática $\mathcal{O}(n^2)$ sob vetores pré-ordenados, invertidos, com chaves idênticas ou construídos por adversários determinísticos~\cite{McIlroy1999}. Para mitigar essas patologias, a literatura desenvolveu variantes com pivoteamento por mediana de três e \textit{ninther}~\cite{BentleyMcIlroy1993}, particionamento de três vias (3-way), hibridização com ordenação por inserção para subvetores pequenos~\cite{Sedgewick1978}, salvaguardas adaptativas como o PDQSort~\cite{Peters2021} e formulações iterativas ou paralelas.
+
+Este trabalho realiza uma avaliação experimental e microarquitetural de variantes do Quicksort implementadas em C23 (\texttt{-std=c23}). Os objetivos compreendem: (i) calibrar empiricamente o limiar $M$ para métodos híbridos; (ii) mensurar a matriz canônica do projeto (Tradicional, Híbrido e Híbrido com Mediana de Três); (iii) confrontar o comportamento sob distribuições uniformes, quase ordenadas, repetidas e adversariais; (iv) avaliar extensões como Lomuto, Hoare, 3-Way, PDQSort, execução iterativa e paralelismo em \textit{thread pool}; e (v) correlacionar a contagem de operações com contadores de hardware (PMU) e a análise de código de máquina emitido via JIT.
+
+\section{Fundamentação Teórica}\label{sec:teoria}
+
+O Quicksort rearranja um arranjo $A[l..r]$ posicionando elementos em relação a um pivô $p$ e recursiona sobre as partições resultantes~\cite{Cormen2022}. O esquema de partição dita o fluxo de dados e os padrões de acesso:
+\begin{itemize}
+	\item \textbf{Lomuto:} Varredura unidirecional com ponteiro de fronteira~\cite{Cormen2022}. Embora didático, efetua $\mathcal{O}(n)$ trocas mesmo em vetores já ordenados e colapsa para $\mathcal{O}(n^2)$ sob chaves idênticas.
+	\item \textbf{Hoare:} Dois ponteiros convergentes a partir dos extremos~\cite{Hoare1961,Hoare1962}. Minimiza trocas no caso médio e tolera duplicatas, mas não isola elementos iguais ao pivô.
+	\item \textbf{3-Way (Bentley-McIlroy):} Segrega elementos em três faixas ($< p$, $= p$ e $> p$)~\cite{BentleyMcIlroy1993}. Evita recursões sobre chaves repetidas, atingindo tempo linear $\mathcal{O}(n)$ em arranjos com valores constantes.
+\end{itemize}
+
+A escolha do pivô condiciona o equilíbrio das partições. Pivôs fixos degradam sob entradas ordenadas. A \textbf{Mediana de Três} (Med3) adota a mediana entre o primeiro, o elemento central e o último elemento ($A[l], A[\lfloor (l+r)/2 \rfloor], A[r]$), neutralizando o pior caso em arranjos ordenados com custo fixo de três comparações~\cite{Sedgewick1978}. Para volumes extensos, o \textbf{Ninther de Tukey} calcula a mediana de três medianas de três elementos amostrados, aproximando a mediana real com custo reduzido~\cite{BentleyMcIlroy1993}.
+
+A \textbf{hibridização} decorre do fato de que, para subvetores com $n \le M$, a sobrecarga recursiva e o particionamento superam o benefício assintótico do algoritmo~\cite{Sedgewick1978,Knuth1998}. A ordenação por inserção ($\mathcal{O}(M^2)$) torna-se substancialmente mais rápida nesses trechos devido a laços compactos e alta localidade espacial. Postergar essa ordenação e executar uma única varredura de inserção ao final do processo otimiza ainda mais o tempo global~\cite{Sedgewick1978}.
+
+Em termos assintóticos, o Quicksort consome em média $2n \ln n \approx 1{,}386 n \log_2 n$ comparações~\cite{Sedgewick1978}. Partições assimétricas levam a $T(n) = T(n-1) + \mathcal{O}(n)$, resultando no pior caso $\mathcal{O}(n^2)$ e consumo de pilha linear, contornável via eliminação de recursão de cauda (\textit{tail-call}) para assegurar pilha em $\mathcal{O}(\log n)$~\cite{Sedgewick1978}. Na microarquitetura, o particionamento sobre chaves aleatórias exibe desvios condicionais com $\approx 50\%$ de probabilidade de tomada, degradando preditores de salto e gerando penalidades de falhas de predição (\textit{branch mispredictions})~\cite{EdelkampWeiss2016}, enquanto falhas de cache L1d e L2 reduzem o índice de instruções por ciclo (IPC).
+
+\section{Trabalhos Relacionados}\label{sec:relacionados}
+
+A evolução do Quicksort ilustra a transição da análise estritamente matemática para a engenharia de algoritmos sensível à arquitetura do processador. Hoare~\cite{Hoare1961,Hoare1962} introduziu a formulação original e o particionamento bidirecional. No presente estudo, o esquema de Hoare constitui a base do Quicksort Tradicional e serve de referência comparativa.
+
+Sedgewick~\cite{Sedgewick1978} formalizou as diretrizes fundamentais da engenharia do Quicksort: o particionamento com mediana de três, o corte para ordenação por inserção em subvetores pequenos ($n \le M$) e a eliminação de recursão de cauda priorizando o menor subarranjo. Tais princípios balizam a variante Híbrida deste trabalho e estruturam o protocolo de calibração empírica de $M$.
+
+Bentley e McIlroy~\cite{BentleyMcIlroy1993} desenvolveram a função \texttt{qsort} da biblioteca C da AT\&T, introduzindo particionamento ternário in-place por empacotamento de chaves iguais nas extremidades e seleção adaptativa entre mediana de três e ninther de Tukey. Essa variante integra nosso catálogo de extensões para avaliar o impacto de chaves repetidas e distribuições de baixa entropia.
+
+Musser~\cite{Musser1997} introduziu o \textit{Introsort}, algoritmo que monitora a profundidade de recursão e comuta para o Heapsort ao ultrapassar $\lfloor 2 \log_2 n \rfloor$ níveis, limitando o pior caso estritamente a $\mathcal{O}(n \log n)$. A necessidade dessa proteção é demonstrada em nossos ensaios ao aplicar o adversário determinístico formulado por McIlroy~\cite{McIlroy1999}.
+
+Peters~\cite{Peters2021} propôs o \textit{Pattern-Defeating Quicksort} (PDQSort), combinando detecção linear de arranjos ordenados ou decrescentes, particionamento com desvios previsíveis e salvaguarda contra o pior caso quadrático. O PDQSort representa em nosso arcabouço o padrão contemporâneo em algoritmos híbridos adaptativos.
+
+Edelkamp e Weiß~\cite{EdelkampWeiss2016} demonstraram que falhas de predição de saltos constituem o principal gargalo do Quicksort moderno, concebendo o \textit{BlockQuicksort} para desvincular testes condicionais do fluxo de controle. Embora nossas implementações mantenham comparações diretas em C23, as conclusões de Edelkamp e Weiß fundamentam nossa telemetria de PMU (\textit{branch-misses} e IPC).
+
+\section{Metodologia}\label{sec:metodologia}
+
+O arcabouço experimental foi implementado em C23 (\texttt{-std=c23}), empregando recursos nativos como \texttt{<threads.h>}, \texttt{<stdatomic.h>}, \texttt{constexpr} e anotações \texttt{[[nodiscard]]}. A arquitetura isola o ruído observacional, garante reprodutibilidade determinística e extrai métricas de microarquitetura diretamente do processador.
+
+\subsection{Arquitetura Dual-Pass}\label{sec:dual-pass}
+
+A mensuração simultânea de operações algorítmicas (comparações e trocas) e grandezas microarquiteturais (tempo e ciclos de clock) introduz o efeito observador: incrementar contadores nos laços internos adiciona instruções e altera o escalonamento do compilador. Para eliminar essa distorção, o arcabouço adota um projeto em duas passagens:
+\begin{enumerate}
+	\item \textbf{Passada Limpa (\texttt{qs\_run\_clean}):} Executa a ordenação de forma pura sobre o vetor original, sem contadores internos. O tempo é medido em nanossegundos via \texttt{CLOCK\_MONOTONIC}, e a Unidade de Monitoramento de Desempenho (PMU) afere ciclos e eventos microarquiteturais.
+	\item \textbf{Passada Contada (\texttt{qs\_run\_counted}):} Processa uma cópia idêntica do vetor original em versão instrumentada, registrando de forma exata e determinística o total de comparações, trocas (\textit{swaps}) e movimentações.
+\end{enumerate}
+Ao final de cada passada, a rotina \texttt{vec\_is\_sorted} audita a ordenação estrita e a integridade da soma de verificação multiconjunto das chaves.
+
+\subsection{Calibração do Ponto de Corte \texorpdfstring{$M$}{M}}\label{sec:calibracao-m}
+
+A eficiência da abordagem híbrida com inserção requer a calibração empírica do ponto de corte $M$. Valores excessivamente baixos sobrecarregam a recursão sobre subvetores diminutos; valores elevados expõem partes extensas do arranjo ao custo $\mathcal{O}(M^2)$ da inserção.
+
+O protocolo experimental executa uma varredura paramétrica de $M \in [2, 128]$ sobre vetores pseudoaleatórios de dimensões $N = 50\,000$ e $N = 500\,000$, amostrando potências de dois e valores intermediários ($M \in \{2, 4, 8, 12, 16, 20, 24, 28, 32, 48, 64, 96, 128\}$). Para cada configuração, avalia-se o tempo da passada limpa, as instruções totais e o comportamento de cache.
+Adotou-se $M^* = 50$, valor que minimiza o tempo médio em quatro das seis células de calibração (com 30 repetições por configuração). Entre $M = 30$ e $M = 64$ o tempo permanece em um platô cujas diferenças estão dentro do intervalo de confiança de 95\%, de modo que a escolha exata dentro desse platô tem impacto pequeno; $M^* = 50$ pertence ao conjunto sugerido pela especificação ($\{5, 10, 20, 30, 50\}$) e é adotado uniformemente em todas as variantes híbridas subsequentes.
+
+\subsection{Cargas de Trabalho e Álgebra de Vetores}\label{sec:cargas}
+
+Os experimentos cobrem um espectro abrangente de distribuições geradas a partir do PRNG determinístico xoshiro256**:
+\begin{itemize}
+	\item \textbf{Cargas Canônicas:} Vetores com distribuição uniforme (\texttt{random}), ordenados de forma crescente (\texttt{sorted}), decrescentes estritos (\texttt{reverse}), de valores repetidos com poucas chaves distintas (\texttt{repeated}) e degenerados para pivô fixo (\texttt{worst\_case}).
+	\item \textbf{Cargas Estruturadas e Patológicas:} Vetores em tubo de órgão (\texttt{organ\_pipe}), dente de serra (\texttt{sawtooth}), vetores com fator contínuo de ordenação parcial $\alpha \in [0{,}0, 1{,}0]$ (\texttt{partial\_sort}), pior caso para mediana de três (\texttt{worst\_case\_med3}) e o vetor construído pelo adversário de McIlroy (\texttt{adversarial\_med3})~\cite{McIlroy1999}.
+	\item \textbf{Álgebra de Vetores:} A linguagem de simulação DSL (\texttt{*.qs}) oferece operadores de composição: concatenação (\texttt{++}), intercalação (\texttt{**}), mistura estocástica (\texttt{\textasciicircum}), inversão (\texttt{\textasciitilde}) e fatiamento (\texttt{slice}).
+\end{itemize}
+
+O conjunto experimental contempla a matriz canônica do projeto (Tradicional, Híbrido com pivô central e Híbrido com Mediana de Três) e variantes contemporâneas: Lomuto, Hoare, 3-Way (Bentley-McIlroy), PDQSort, Ninther de Tukey, execução iterativa em pilha explícita no heap, eliminação de cauda (\textit{tail-call}) e paralelismo por \textit{thread pool} com 4 e 6 threads de trabalho.
+
+\subsection{Ambiente de Medição}\label{sec:ambiente}
+
+As medições foram conduzidas no nó computacional caracterizado na \cref{tab:host-info}. O processador AMD Ryzen 5 5600X (microarquitetura Zen 3) dispõe de 6 núcleos físicos, 12 threads lógicas (SMT), caches privados L1d de 32 KiB (8 vias) e L2 de 512 KiB (8 vias) por núcleo, e uma cache L3 compartilhada de 32 MiB (32 vias).
+
+\begin{table}[htbp]
+\centering
+\caption{Especificação do ambiente de medição e topologia do processador.}
+\label{tab:host-info}
+\IfFileExists{data/host_info.tex}{%
+\input{data/host_info.tex}%
+}{%
+\begin{tabular}{ll}
+\toprule
+\textbf{Parâmetro} & \textbf{Especificação do Host} \\
+\midrule
+Processador & AMD Ryzen 5 5600X (6 núcleos físicos, 12 threads) \\
+Hierarquia de Cache & L1d: 32 KiB, L2: 512 KiB (por núcleo); L3: 32 MiB unificada \\
+Memória Principal & 31{,}28 GiB RAM \\
+Sistema Operacional & Linux 6.18 LTS (\texttt{perf\_event\_paranoid=2}) \\
+Compilador & Clang 23.1.4 (\texttt{-std=c23 -O3 -march=native}) \\
+\bottomrule
+\end{tabular}%
+}
+\end{table}
+
+A telemetria acessa contadores de desempenho de hardware através de \texttt{perf\_event\_open}, registrando ciclos (\texttt{cycles}), instruções (\texttt{instructions}), saltos (\texttt{branches}), falhas de predição de saltos (\texttt{branch-misses}) e falhas de cache L1d (\texttt{L1-dcache-load-misses}). As contagens operam com privilégios isolados (\texttt{exclude\_kernel = 1} e \texttt{exclude\_hv = 1}), monitorando exclusivamente o processo em espaço de usuário.
+
+\noindent\textbf{Ressalva Metodológica de Telemetria da PMU:} Na arquitetura AMD Zen 3 com \texttt{perf\_event\_paranoid=2}, o evento genérico \texttt{PERF\_COUNT\_HW\_CACHE\_LL} (\texttt{LLC-load-misses}) não é suportado pelo kernel sem privilégios elevados. Por essa razão, a grandeza de falhas de LLC (\texttt{mean\_llc\_misses}) é reportada formalmente como indisponível no ambiente de teste, evitando distorções decorrentes de contagens nulas.
+
+\subsection{Protocolo de Execução e Isolamento}\label{sec:protocolo}
+
+Para mitigar perturbações do sistema operacional:
+\begin{enumerate}
+	\item \textbf{Afinidade de CPU (\textit{Core Pinning}):} Cada thread de medição é fixada a um núcleo físico exclusivo via \texttt{sched\_setaffinity}, evitando migrações e preservando a afinidade de cache.
+	\item \textbf{Controle de Estado de Cache (\textit{Cold Cache Enforcement}):} Em regime de cache frio, um buffer dedicado com duas vezes o tamanho da LLC ($2 \times \text{LLC} = 64\text{ MiB}$) é percorrido e sobrescrito antes de cada ordenação, expurgando linhas remanescentes de todos os níveis.
+	\item \textbf{Repetições e Estatística:} Cada ponto experimental é submetido a $R$ repetições independentes ($R \ge 5$). Os resultados reportam média aritmética e desvio padrão amostral, descartando passagens de aquecimento.
+\end{enumerate}
+
+\subsection{Compilação Estática e Dinâmica JIT}\label{sec:compilacao}
+
+O arcabouço opera sob modelo híbrido:
+\begin{itemize}
+	\item \textbf{Fast-Path Estático:} Na ausência de opções especiais, o kernel (\texttt{quicksort\_kernel.c}) é compilado com o binário principal em Clang com \texttt{-std=c23 -O3 -march=native}, permitindo otimizações interprocedurais e instrumentação para Otimização Guiada por Perfil (PGO via \texttt{make pgo}).
+	\item \textbf{Módulo Dinâmico JIT:} Quando o arquivo de simulação especifica flags alternativas (\texttt{-O1}, \texttt{-O2}, \texttt{-O3}) ou diretivas \texttt{\#pragma} de laço (\texttt{\#pragma clang loop unroll} ou \texttt{\#pragma clang loop vectorize}), o sistema invoca o Clang sob demanda. O compilador produz uma biblioteca dinâmica em \texttt{build/jit/<hash>.so} e a respectiva listagem em assembly \texttt{build/jit/<hash>.s} (via \texttt{clang -S -fverbose-asm}), carregada em tempo de execução via \texttt{dlopen}/\texttt{dlsym} para correlação direta entre diretivas, código de máquina e telemetria da PMU.
+\end{itemize}
+
+\section{Resultados e Discussão}\label{sec:resultados}
+
+% TODO(fase 6): análise dos resultados experimentais obtidos nas campanhas de simulação.
+
+\subsection{Calibração Empírica do Ponto de Corte}\label{sec:res-calibracao-m}
+
+% TODO(fase 6): discussão dos resultados da calibração de M e trade-offs de cache.
+
+\subsection{Matriz Canônica de Desempenho}\label{sec:res-matriz-tp}
+
+% TODO(fase 6): resultados comparativos da matriz oficial do trabalho prático.
+
+\subsection{Sensibilidade a Piores Casos e Adversários}\label{sec:res-worst-case}
+
+% TODO(fase 6): comportamento sob entradas patológicas e vetores do assassino de mediana-de-3.
+
+\subsection{Variantes Avançadas: 3-Way, PDQSort e Ninther}\label{sec:res-avancadas}
+
+% TODO(fase 6): desempenho do particionamento Bentley-McIlroy, PDQSort e pivô ninther.
+
+\subsection{Modelos de Execução: Pilha Explícita e Paralelismo}\label{sec:res-execucao}
+
+% TODO(fase 6): comparação entre recursão, eliminação de cauda, pilha iterativa e thread pool.
+
+\subsection{Telemetria Microarquitetural e Análise de Assembly}\label{sec:res-micro-jit}
+
+% TODO(fase 6): correlação de IPC, branch mispredictions, cache misses e impacto de pragmas/flags.
+
+\section{Conclusão}\label{sec:conclusao}
+
+% TODO(fase 6): síntese das contribuições e conclusões finais da investigação experimental.
+
+\bibliographystyle{sbc}
+\bibliography{references}
+
+\appendix
+\section{Apêndice: Tabelas Estendidas e Listagens de Assembly}\label{sec:apendice}
+
+% TODO(fase 6): listagens de código de montagem e matrizes tabulares completas.
+
+\end{document}
