@@ -1,0 +1,105 @@
+% SPDX-License-Identifier: CC-BY-SA-4.0
+\pgfplotsset{
+    discard if not/.style 2 args={
+        filter discard warning=false,
+        x filter/.append code={
+            \edef\tempa{\thisrow{#1}}%
+            \edef\tempb{#2}%
+            \ifx\tempa\tempb
+            \else
+                \def\pgfmathresult{nan}%
+            \fi
+        }
+    }
+}
+\begin{figure}[htbp]
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+    width=0.88\linewidth,
+    height=4.4cm,
+    xmode=log,
+    ymode=log,
+    log basis x={10},
+    log basis y={10},
+    xlabel={Dimensão do vetor ($n$)},
+    ylabel={Tempo médio (\unit{\milli\second})},
+    xmin=800, xmax=65000,
+    ymin=0.002, ymax=200,
+    xtick={1000, 5000, 10000, 50000},
+    xticklabels={$10^3$, $5\times 10^3$, $10^4$, $5\times 10^4$},
+    tick label style={font=\tiny},
+    label style={font=\scriptsize},
+    grid=major,
+    grid style={dashed, gray!30},
+    legend pos=north west,
+    legend style={font=\tiny, fill=white, fill opacity=0.85, draw=gray!40},
+    unbounded coords=discard
+]
+\addplot[color=blue!80!black, mark=square*, mark size=1.1pt, semithick]
+    table [
+        col sep=comma,
+        x=n,
+        y=mean_ms,
+        discard if not={dataset}{random},
+        discard if not={variant}{trad}
+    ] {data/tp_official.csv};
+\addlegendentry{\texttt{random} -- Tradicional}
+
+\addplot[color=cyan!80!black, mark=triangle*, mark size=1.2pt, semithick, dashed]
+    table [
+        col sep=comma,
+        x=n,
+        y=mean_ms,
+        discard if not={dataset}{random},
+        discard if not={variant}{hybrid}
+    ] {data/tp_official.csv};
+\addlegendentry{\texttt{random} -- Híbrido ($M=50$)}
+
+\addplot[color=teal!80!black, mark=diamond*, mark size=1.2pt, semithick]
+    table [
+        col sep=comma,
+        x=n,
+        y=mean_ms,
+        discard if not={dataset}{random},
+        discard if not={variant}{hybrid_med3}
+    ] {data/tp_official.csv};
+\addlegendentry{\texttt{random} -- Híb.+Med3 ($M=50$)}
+
+\addplot[color=red!80!black, mark=otimes*, mark size=1.2pt, semithick]
+    table [
+        col sep=comma,
+        x=n,
+        y=mean_ms,
+        discard if not={dataset}{sorted},
+        discard if not={variant}{trad}
+    ] {data/tp_official.csv};
+\addlegendentry{\texttt{sorted} -- Tradicional (Lomuto)}
+
+\addplot[color=olive!80!black, mark=star, mark size=1.4pt, semithick]
+    table [
+        col sep=comma,
+        x=n,
+        y=mean_ms,
+        discard if not={dataset}{sorted},
+        discard if not={variant}{hybrid_med3}
+    ] {data/tp_official.csv};
+\addlegendentry{\texttt{sorted} -- Híb.+Med3 ($M=50$)}
+
+\addplot[color=purple!80!black, mark=x, mark size=1.5pt, semithick, dashdotted]
+    table [
+        col sep=comma,
+        x=n,
+        y=mean_ms,
+        discard if not={dataset}{worst_case_med3},
+        discard if not={variant}{hybrid_med3}
+    ] {data/tp_official.csv};
+\addlegendentry{\texttt{worst\_med3} -- Híb.+Med3 ($M=50$)}
+
+\node[font=\tiny\bfseries, text=red!80!black, anchor=west] at (axis cs:5500,10.5) {$\dagger$ Fallback Heapsort ($d \ge 4096$)};
+\end{axis}
+\end{tikzpicture}
+\vspace{-1ex}
+\caption{Escalabilidade assintótica (escala log-log) do tempo de execução em função de $n$. Sob vetores ordenados, o esquema tradicional (Lomuto com pivô fixo) degenera quadraticamente até a ativação da salvaguarda de introsort ($d \ge 4096$), enquanto a Mediana de Três preserva o regime ideal ($\approx 0{,}36\text{ ms}$ em $n=50\,000$).}
+\label{fig:scaling-tp}
+\end{figure}

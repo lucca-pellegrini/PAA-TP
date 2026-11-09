@@ -111,11 +111,21 @@ pgo:
 	$(MAKE) CFLAGS="-fprofile-use=default.profdata" LDFLAGS="-fprofile-use=default.profdata"
 	rm -f default.profdata
 
-report: $(TARGET)
-	./$(TARGET) --no-tui --host-info-tex report/data/host_info.tex --host-info-csv report/data/host_info.csv
+REPORT_CSVS = report/data/host_info.csv \
+              report/data/calibration_m.csv \
+              report/data/tp_official.csv \
+              report/data/extensions_pdq.csv \
+              report/data/jit_assembly.csv
+
+report/data/values.tex: $(REPORT_CSVS) report/macros.awk
+	awk -f report/macros.awk $(REPORT_CSVS) > $@
+
+report: $(TARGET) tui
+	./$(TARGET) --sysinfo-tex report/data/host_info.tex --sysinfo-csv report/data/host_info.csv
 	@for sim in simulations/calibration_m.qs simulations/tp_official.qs simulations/extensions_pdq.qs simulations/jit_assembly.qs; do \
-		if [ -f "$$sim" ]; then ./$(TARGET) --no-tui "$$sim"; fi; \
+		if [ -f "$$sim" ]; then ./$(TARGET) "$$sim"; fi; \
 	done
+	$(MAKE) report/data/values.tex
 	cd report && latexmk -pdf -interaction=nonstopmode main.tex
 
 clean-KeepProf:

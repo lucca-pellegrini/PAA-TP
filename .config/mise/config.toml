@@ -48,7 +48,7 @@ set -euo pipefail
 mkdir -p build
 cd tui
 bun install
-zig build -Doptimize=ReleaseFast
+zig build -Drelease
 cp -f zig-out/lib/libqs_tui.so ../build/libqs_tui.so
 """
 

@@ -1,0 +1,132 @@
+% SPDX-License-Identifier: CC-BY-SA-4.0
+\pgfplotsset{
+    discard if not/.style 2 args={
+        filter discard warning=false,
+        x filter/.append code={
+            \edef\tempa{\thisrow{#1}}%
+            \edef\tempb{#2}%
+            \ifx\tempa\tempb
+            \else
+                \def\pgfmathresult{nan}%
+            \fi
+        }
+    }
+}
+\begin{figure}[htbp]
+\centering
+\begin{minipage}{0.48\textwidth}
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+    width=\linewidth,
+    height=3.8cm,
+    xlabel={Limiar de corte $M$},
+    ylabel={Tempo médio (\unit{\milli\second})},
+    title={$N = 10\,000$},
+    title style={font=\footnotesize\bfseries, yshift=-1.5ex},
+    xmin=-2, xmax=66,
+    xtick={0, 16, 30, 40, 50, 64},
+    xticklabels={0, 16, 30, 40, 50, 64},
+    tick label style={font=\tiny},
+    label style={font=\scriptsize},
+    grid=major,
+    grid style={dashed, gray!30},
+    legend pos=north east,
+    legend style={font=\tiny, fill=white, fill opacity=0.85, draw=gray!40},
+    unbounded coords=discard
+]
+\addplot[color=blue!80!black, mark=square*, mark size=1.0pt, semithick]
+    table [
+        col sep=comma,
+        x=cutoff,
+        y=mean_ms,
+        discard if not={dataset}{cal_random},
+        discard if not={n}{10000}
+    ] {data/calibration_m.csv};
+\addlegendentry{\texttt{cal\_random}}
+
+\addplot[color=orange!85!black, mark=triangle*, mark size=1.1pt, semithick]
+    table [
+        col sep=comma,
+        x=cutoff,
+        y=mean_ms,
+        discard if not={dataset}{cal_partial},
+        discard if not={n}{10000}
+    ] {data/calibration_m.csv};
+\addlegendentry{\texttt{cal\_partial}}
+
+\addplot[color=teal!80!black, mark=diamond*, mark size=1.1pt, semithick]
+    table [
+        col sep=comma,
+        x=cutoff,
+        y=mean_ms,
+        discard if not={dataset}{cal_repeated},
+        discard if not={n}{10000}
+    ] {data/calibration_m.csv};
+\addlegendentry{\texttt{cal\_repeated}}
+
+\draw[dashed, red!80!black, semithick] ({axis cs:50,0} |- {rel axis cs:0,0}) -- ({axis cs:50,0} |- {rel axis cs:0,1})
+    node[pos=0.85, left, font=\tiny\bfseries, text=red!80!black] {$M^*=50$};
+\end{axis}
+\end{tikzpicture}
+\end{minipage}\hfill
+\begin{minipage}{0.48\textwidth}
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+    width=\linewidth,
+    height=3.8cm,
+    xlabel={Limiar de corte $M$},
+    ylabel={Tempo médio (\unit{\milli\second})},
+    title={$N = 50\,000$},
+    title style={font=\footnotesize\bfseries, yshift=-1.5ex},
+    xmin=-2, xmax=66,
+    xtick={0, 16, 30, 40, 50, 64},
+    xticklabels={0, 16, 30, 40, 50, 64},
+    tick label style={font=\tiny},
+    label style={font=\scriptsize},
+    grid=major,
+    grid style={dashed, gray!30},
+    legend pos=north east,
+    legend style={font=\tiny, fill=white, fill opacity=0.85, draw=gray!40},
+    unbounded coords=discard
+]
+\addplot[color=blue!80!black, mark=square*, mark size=1.0pt, semithick]
+    table [
+        col sep=comma,
+        x=cutoff,
+        y=mean_ms,
+        discard if not={dataset}{cal_random},
+        discard if not={n}{50000}
+    ] {data/calibration_m.csv};
+\addlegendentry{\texttt{cal\_random}}
+
+\addplot[color=orange!85!black, mark=triangle*, mark size=1.1pt, semithick]
+    table [
+        col sep=comma,
+        x=cutoff,
+        y=mean_ms,
+        discard if not={dataset}{cal_partial},
+        discard if not={n}{50000}
+    ] {data/calibration_m.csv};
+\addlegendentry{\texttt{cal\_partial}}
+
+\addplot[color=teal!80!black, mark=diamond*, mark size=1.1pt, semithick]
+    table [
+        col sep=comma,
+        x=cutoff,
+        y=mean_ms,
+        discard if not={dataset}{cal_repeated},
+        discard if not={n}{50000}
+    ] {data/calibration_m.csv};
+\addlegendentry{\texttt{cal\_repeated}}
+
+\draw[dashed, red!80!black, semithick] ({axis cs:50,0} |- {rel axis cs:0,0}) -- ({axis cs:50,0} |- {rel axis cs:0,1})
+    node[pos=0.85, left, font=\tiny\bfseries, text=red!80!black] {$M^*=50$};
+\end{axis}
+\end{tikzpicture}
+\end{minipage}
+\vspace{-1ex}
+\caption{Calibração do limiar $M \in [0, 64]$ sobre \texttt{cal\_random}, \texttt{cal\_partial} e \texttt{cal\_repeated} para $N \in \{10^4, 5\times 10^4\}$. O platô ótimo situa-se na faixa $M \in [30, 64]$, justificando a seleção uniforme de $M^* = 50$.}
+\label{fig:calibracao-m}
+\end{figure}
