@@ -434,17 +434,26 @@ variant_pragmas(QsParseContext *ctx, const QsValue *vals, QS_YYLTYPE loc)
 
 	for (size_t i = 0; i < vals->n_list; i++) {
 		const char *s = vals->list[i];
+		unsigned int n = 0;
+		char trailing = 0;
 
-		if (strcmp(s, "unroll_full") == 0)
-			v->jit.pragma_unroll_full = true;
-		else if (strcmp(s, "no_unroll") == 0)
+		if (strcmp(s, "no_unroll") == 0 || strcmp(s, "unroll(disable)") == 0) {
 			v->jit.pragma_no_unroll = true;
-		else if (strcmp(s, "vectorize") == 0)
+		} else if (strcmp(s, "vectorize") == 0 || strcmp(s, "vectorize(enable)") == 0) {
 			v->jit.pragma_vectorize = true;
-		else if (strcmp(s, "no_vectorize") == 0)
+		} else if (strcmp(s, "no_vectorize") == 0 || strcmp(s, "vectorize(disable)") == 0) {
 			v->jit.pragma_no_vectorize = true;
-		else
+		} else if (sscanf(s, "unroll(%u%c", &n, &trailing) == 2 && trailing == ')') {
+			if (n == 2 || n == 4 || n == 8) {
+				v->jit.pragma_unroll_count = n;
+			} else {
+				qs_parse_warning(ctx, loc,
+						 "unsupported unroll factor in '%s' (expected 2, 4, or 8)",
+						 s);
+			}
+		} else {
 			qs_parse_warning(ctx, loc, "unknown pragma '%s'", s);
+		}
 	}
 }
 

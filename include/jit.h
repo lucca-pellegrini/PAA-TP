@@ -9,7 +9,7 @@
 typedef struct QsJitOptions {
 	const char *cc;
 	const char *cflags;
-	bool pragma_unroll_full;
+	unsigned int pragma_unroll_count;
 	bool pragma_no_unroll;
 	bool pragma_vectorize;
 	bool pragma_no_vectorize;

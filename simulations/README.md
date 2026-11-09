@@ -22,7 +22,7 @@ execution mode, hardware performance counter, and dynamic `.so` JIT flag:
 - `11_cold_vs_warm.qs`: Exercises the pure-C23 $2 \times \text{LLC}$ cache-thrashing buffer.
 - `12_pmu_telemetry.qs`: Exercises `perf_event_open` hardware and cache counters.
 - `13_jit_flags.qs`: Exercises on-demand `.so` compilation across `-O1`, `-O2`, and `-O3 -march=native`.
-- `14_jit_pragmas.qs`: Exercises loop unrolling and vectorization `#pragma` flags with `.s` assembly output.
+- `14_jit_pragmas.qs`: Exercises loop unrolling (`unroll(N)`, e.g. `unroll(4)`) and vectorization `#pragma` flags with `.s` assembly output.
 
 ## Canonical Manuscript Suites
 

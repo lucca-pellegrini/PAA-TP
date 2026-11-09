@@ -7,8 +7,12 @@
 
 #include "util.h"
 
-#if defined(QS_PRAGMA_UNROLL_FULL)
-#define QS_PRAGMA_UNROLL_PART _Pragma("clang loop unroll(full)")
+#if defined(QS_PRAGMA_UNROLL_COUNT) && (QS_PRAGMA_UNROLL_COUNT > 1)
+#define QS_STR_HELPER(x) #x
+#define QS_STR(x) QS_STR_HELPER(x)
+#define QS_PRAGMA_UNROLL_PART _Pragma(QS_STR(clang loop unroll_count(QS_PRAGMA_UNROLL_COUNT)))
+#elif defined(QS_PRAGMA_UNROLL_FULL)
+#define QS_PRAGMA_UNROLL_PART _Pragma("clang loop unroll_count(4)")
 #elif defined(QS_PRAGMA_NO_UNROLL)
 #define QS_PRAGMA_UNROLL_PART _Pragma("clang loop unroll(disable)")
 #else

@@ -53,14 +53,14 @@ variant pragma_no_unroll {
 	pragmas = ["no_unroll"];
 }
 
-variant pragma_unroll_full {
+variant pragma_unroll_4 {
 	partition = hoare;
 	pivot = median3;
 	cutoff = 16;
 	small_sort = insertion;
 	execution = tail_call;
 	cflags = "-O3 -march=native -funroll-loops";
-	pragmas = ["unroll_full"];
+	pragmas = ["unroll(4)"];
 }
 
 variant pragma_no_vec {
@@ -75,7 +75,7 @@ variant pragma_no_vec {
 
 benchmark jit_assembly {
 	datasets = [jit_random, jit_sorted];
-	variants = [cflags_O1, cflags_O2, cflags_O3_native, pragma_no_unroll, pragma_unroll_full, pragma_no_vec];
+	variants = [cflags_O1, cflags_O2, cflags_O3_native, pragma_no_unroll, pragma_unroll_4, pragma_no_vec];
 	metrics = [monotonic_ns, comparisons, swaps, moves, cycles, instructions, branches, branch_misses, l1d_misses, llc_misses];
 	output_csv = "report/data/jit_assembly.csv";
 	emit_asm = true;

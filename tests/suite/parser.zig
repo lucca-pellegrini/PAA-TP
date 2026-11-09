@@ -71,7 +71,7 @@ const c = struct {
     pub const QsJitOptions = extern struct {
         cc: ?[*:0]const u8,
         cflags: ?[*:0]const u8,
-        pragma_unroll_full: bool,
+        pragma_unroll_count: c_uint,
         pragma_no_unroll: bool,
         pragma_vectorize: bool,
         pragma_no_vectorize: bool,
@@ -343,6 +343,21 @@ test "parser: defaults applied when fields are omitted" {
     try testing.expectEqual(c.QS_EXEC_TAIL_CALL, cfg.exec_mode);
     try testing.expectEqual(@as(usize, 16), cfg.cutoff);
     try testing.expectEqual(c.QS_ORDER_ASC, cfg.order);
+
+    // Pragmas parsing: unroll(4), unroll(disable), vectorize
+    const src_pragmas =
+        \\variant v_p1 { pragmas = ["unroll(4)", "vectorize"]; }
+        \\variant v_p2 { pragmas = ["unroll(disable)", "no_vectorize"]; }
+    ;
+    var plan_p: c.QsSimPlan = undefined;
+    const rc_p = c.qs_parse_string(src_pragmas, "pragmas.qs", &plan_p);
+    try testing.expectEqual(@as(c_int, 0), rc_p);
+    defer c.qs_sim_plan_destroy(&plan_p);
+
+    try testing.expectEqual(@as(c_uint, 4), plan_p.variants[0].jit.pragma_unroll_count);
+    try testing.expectEqual(true, plan_p.variants[0].jit.pragma_vectorize);
+    try testing.expectEqual(true, plan_p.variants[1].jit.pragma_no_unroll);
+    try testing.expectEqual(true, plan_p.variants[1].jit.pragma_no_vectorize);
 }
 
 // 4. Vector algebra: ++, **, ^, ~, |> partial_sort(...), [a..b] slices

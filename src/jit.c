@@ -64,7 +64,7 @@ static bool file_exists(const char *path)
 	QsJitOptions opts = {
 		.cc = "clang",
 		.cflags = "-O3 -march=native",
-		.pragma_unroll_full = false,
+		.pragma_unroll_count = 0,
 		.pragma_no_unroll = false,
 		.pragma_vectorize = false,
 		.pragma_no_vectorize = false,
@@ -86,7 +86,7 @@ static uint64_t hash_jit_options(const QsJitOptions *opts)
 	h = qs_hash_bytes(":", 1, h);
 
 	uint8_t flags[4] = {
-		opts->pragma_unroll_full ? 1U : 0U,
+		(uint8_t)opts->pragma_unroll_count,
 		opts->pragma_no_unroll ? 1U : 0U,
 		opts->pragma_vectorize ? 1U : 0U,
 		opts->pragma_no_vectorize ? 1U : 0U,
@@ -100,7 +100,7 @@ static bool is_default_fastpath_options(const QsJitOptions *opts)
 	if (opts == nullptr) {
 		return true;
 	}
-	if (opts->pragma_unroll_full || opts->pragma_no_unroll || opts->pragma_vectorize ||
+	if (opts->pragma_unroll_count > 0 || opts->pragma_no_unroll || opts->pragma_vectorize ||
 	    opts->pragma_no_vectorize || opts->emit_asm || opts->force_recompile) {
 		return false;
 	}
@@ -173,9 +173,10 @@ static void build_pragma_defines(const QsJitOptions *opts, char *buf, size_t buf
 	buf[0] = '\0';
 	size_t off = 0;
 
-	if (opts->pragma_unroll_full) {
+	if (opts->pragma_unroll_count > 0) {
 		int w = snprintf(buf + off, buf_sz - off,
-				 " -DQS_PRAGMA_UNROLL_FULL=1 -DPRAGMA_UNROLL_FULL=1");
+				 " -DQS_PRAGMA_UNROLL_COUNT=%u -DPRAGMA_UNROLL_COUNT=%u",
+				 opts->pragma_unroll_count, opts->pragma_unroll_count);
 		if (w > 0 && off + (size_t)w < buf_sz) {
 			off += (size_t)w;
 		}

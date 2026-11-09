@@ -61,7 +61,7 @@ const c = struct {
     pub const QsJitOptions = extern struct {
         cc: ?[*:0]const u8,
         cflags: ?[*:0]const u8,
-        pragma_unroll_full: bool,
+        pragma_unroll_count: c_uint,
         pragma_no_unroll: bool,
         pragma_vectorize: bool,
         pragma_no_vectorize: bool,
@@ -104,6 +104,22 @@ const c = struct {
 extern "c" fn access(pathname: [*:0]const u8, mode: c_int) c_int;
 extern "c" fn unlink(pathname: [*:0]const u8) c_int;
 extern "c" fn rmdir(pathname: [*:0]const u8) c_int;
+extern "c" fn fopen(filename: [*:0]const u8, modes: [*:0]const u8) ?*anyopaque;
+extern "c" fn fclose(stream: ?*anyopaque) c_int;
+extern "c" fn fseek(stream: ?*anyopaque, offset: c_long, whence: c_int) c_int;
+extern "c" fn ftell(stream: ?*anyopaque) c_long;
+extern "c" fn fread(ptr: [*]u8, size: usize, n: usize, stream: ?*anyopaque) usize;
+
+fn readWholeFile(allocator: std.mem.Allocator, path: [*:0]const u8) ![]u8 {
+    const f = fopen(path, "rb") orelse return error.FileNotFound;
+    defer _ = fclose(f);
+    _ = fseek(f, 0, 2);
+    const sz: usize = @intCast(ftell(f));
+    _ = fseek(f, 0, 0);
+    const buf = try allocator.alloc(u8, sz);
+    _ = fread(buf.ptr, 1, sz, f);
+    return buf;
+}
 
 test "metrics: create, thrash_cache, begin, end, destroy with monotonic_ns > 0" {
     const ctx = c.qs_metrics_create(true, 1024 * 1024);
@@ -135,7 +151,7 @@ test "jit: static fastpath and dynamic .so/.s compilation + execution" {
 
     var custom_opts = c.qs_jit_options_default();
     custom_opts.cflags = "-O2";
-    custom_opts.pragma_unroll_full = true;
+    custom_opts.pragma_unroll_count = 4;
     custom_opts.emit_asm = true;
 
     const dyn_mod = c.qs_jit_acquire(cache, &custom_opts);
@@ -178,4 +194,48 @@ test "jit: static fastpath and dynamic .so/.s compilation + execution" {
     try testing.expectEqual(@as(u64, 0), st_clean.comparisons);
     try testing.expect(st_counted.comparisons > 0);
     try testing.expectEqualSlices(c_int, v_clean.data[0..v_clean.len], v_counted.data[0..v_counted.len]);
+}
+
+test "jit: unroll(4) pragma produces different assembly from default" {
+    const jit_dir = "build/jit_test_unroll";
+    const cache = c.qs_jit_cache_create(jit_dir);
+    try testing.expect(cache != null);
+    defer c.qs_jit_cache_destroy(cache);
+
+    // Module 1: default with emit_asm
+    var opts_default = c.qs_jit_options_default();
+    opts_default.cflags = "-O3 -march=native";
+    opts_default.emit_asm = true;
+    opts_default.force_recompile = true;
+    const mod_default = c.qs_jit_acquire(cache, &opts_default);
+    try testing.expect(mod_default != null);
+
+    // Module 2: unroll(4) with emit_asm
+    var opts_unroll = c.qs_jit_options_default();
+    opts_unroll.cflags = "-O3 -march=native";
+    opts_unroll.pragma_unroll_count = 4;
+    opts_unroll.emit_asm = true;
+    opts_unroll.force_recompile = true;
+    const mod_unroll = c.qs_jit_acquire(cache, &opts_unroll);
+    try testing.expect(mod_unroll != null);
+
+    const so_default_ptr: [*:0]const u8 = @ptrCast(&mod_default.?.so_path);
+    const asm_default_ptr: [*:0]const u8 = @ptrCast(&mod_default.?.asm_path);
+    const so_unroll_ptr: [*:0]const u8 = @ptrCast(&mod_unroll.?.so_path);
+    const asm_unroll_ptr: [*:0]const u8 = @ptrCast(&mod_unroll.?.asm_path);
+    defer {
+        _ = unlink(so_default_ptr);
+        _ = unlink(asm_default_ptr);
+        _ = unlink(so_unroll_ptr);
+        _ = unlink(asm_unroll_ptr);
+        _ = rmdir(jit_dir);
+    }
+
+    const content_default = try readWholeFile(testing.allocator, asm_default_ptr);
+    defer testing.allocator.free(content_default);
+
+    const content_unroll = try readWholeFile(testing.allocator, asm_unroll_ptr);
+    defer testing.allocator.free(content_unroll);
+
+    try testing.expect(!std.mem.eql(u8, content_default, content_unroll));
 }
