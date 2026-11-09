@@ -29,6 +29,7 @@ report/*.out
 report/*.synctex.gz
 report/*.toc
 report/main.pdf
+report/.venv
 
 # Reference directories & local notes (keep untracked)
 PLAN.md

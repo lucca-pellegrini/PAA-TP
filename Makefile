@@ -32,7 +32,7 @@ DEPS := $(patsubst $(OBJ_DIR)/%.o,$(DEP_DIR)/%.d,$(OBJS))
 
 JSON_FRAGMENTS := $(patsubst $(OBJ_DIR)/%.o,$(BUILD_DIR)/%.json,$(OBJS))
 
-.PHONY: all clean format compiledb pgo test cov coverage tui report
+.PHONY: all clean distclean format compiledb pgo test cov coverage tui report
 
 all: $(TARGET)
 
@@ -49,14 +49,16 @@ $(OBJ_DIR)/%.o: src/%.c $(GEN_H) | $(OBJ_DIR) $(DEP_DIR)
 	$(CC) $(CPPFLAGS) $(CFLAGS) -MMD -MP -MF $(DEP_DIR)/$*.d -c $< -o $@
 
 $(OBJ_DIR)/%.o: $(GEN_DIR)/%.c $(GEN_H) | $(OBJ_DIR) $(DEP_DIR)
-	$(CC) $(CPPFLAGS) $(CFLAGS) -Wno-unused-function -Wno-sign-compare -Wno-unused-parameter -MMD -MP -MF $(DEP_DIR)/$*.d -c $< -o $@
+	$(CC) $(CPPFLAGS) $(CFLAGS) -Wno-unused-function -Wno-sign-compare -Wno-unused-parameter -Wno-unused-but-set-variable -MMD -MP -MF $(DEP_DIR)/$*.d -c $< -o $@
 
-$(OBJ_DIR) $(DEP_DIR) $(GEN_DIR) $(JIT_DIR) $(BUILD_DIR):
+$(OBJ_DIR) $(DEP_DIR) $(GEN_DIR) $(JIT_DIR) $(BUILD_DIR)/stamps report/data $(BUILD_DIR):
 	mkdir -p $@
 
-tui: | $(BUILD_DIR)
+$(BUILD_DIR)/libqs_tui.so: | $(BUILD_DIR)
 	cd tui && bun install && zig build -Drelease
-	cp -f tui/zig-out/lib/libqs_tui.so $(BUILD_DIR)/libqs_tui.so
+	cp -f tui/zig-out/lib/libqs_tui.so $@
+
+tui: $(BUILD_DIR)/libqs_tui.so
 
 test: $(GEN_H) $(GEN_C)
 	zig build --build-file tests/build.zig test --summary all
@@ -111,28 +113,48 @@ pgo:
 	$(MAKE) CFLAGS="-fprofile-use=default.profdata" LDFLAGS="-fprofile-use=default.profdata"
 	rm -f default.profdata
 
+STAMP_DIR := $(BUILD_DIR)/stamps
+CANONICAL_SIMS := calibration_m tp_official extensions_pdq jit_assembly
+SIM_STAMPS := $(patsubst %,$(STAMP_DIR)/%.stamp,$(CANONICAL_SIMS))
+
 REPORT_CSVS = report/data/host_info.csv \
               report/data/calibration_m.csv \
               report/data/tp_official.csv \
               report/data/extensions_pdq.csv \
               report/data/jit_assembly.csv
 
-report/data/values.tex: $(REPORT_CSVS) report/macros.awk
+report/data/%.csv $(STAMP_DIR)/%.stamp: simulations/%.qs $(TARGET) | $(STAMP_DIR) report/data
+	@rm -f report/data/$*.csv $(STAMP_DIR)/$*.stamp
+	./$(TARGET) --headless $<
+	@touch $(STAMP_DIR)/$*.stamp
+
+report/data/host_info.csv report/data/host_info.tex: $(TARGET) | report/data
+	./$(TARGET) --sysinfo-tex report/data/host_info.tex --sysinfo-csv report/data/host_info.csv
+
+report/data/kernel_scalar.s: ./src/quicksort_kernel.c include/quicksort.h | report/data
+	clang -std=c23 -D_GNU_SOURCE -S -fverbose-asm -I./include -O3 -march=native $< -o $@
+
+report/data/kernel_unroll4.s: ./src/quicksort_kernel.c include/quicksort.h | report/data
+	clang -std=c23 -D_GNU_SOURCE -S -fverbose-asm -I./include -O3 -march=native -funroll-loops -DQS_PRAGMA_UNROLL_COUNT=4 $< -o $@
+
+report/data/values.tex: $(REPORT_CSVS) report/macros.awk | report/data
 	awk -f report/macros.awk $(REPORT_CSVS) > $@
 
-report: $(TARGET) tui
-	./$(TARGET) --sysinfo-tex report/data/host_info.tex --sysinfo-csv report/data/host_info.csv
-	@for sim in simulations/calibration_m.qs simulations/tp_official.qs simulations/extensions_pdq.qs simulations/jit_assembly.qs; do \
-		if [ -f "$$sim" ]; then ./$(TARGET) "$$sim"; fi; \
-	done
-	$(MAKE) report/data/values.tex
-	cd report && latexmk -pdf -interaction=nonstopmode main.tex
+report: $(TARGET) $(BUILD_DIR)/libqs_tui.so $(SIM_STAMPS) $(REPORT_CSVS) report/data/host_info.tex report/data/kernel_scalar.s report/data/kernel_unroll4.s report/data/values.tex
+	cd report && latexmk -pdf -interaction=nonstopmode -shell-escape main.tex
 
 clean-KeepProf:
 	rm -rf $(BUILD_DIR) $(TARGET)
 
 clean: clean-KeepProf
 	rm -f compile_commands.json default.profdata default.profraw
+
+# Everything generated (build, Zig caches, campaign data, LaTeX output); keeps tui/node_modules and report/.venv
+distclean: clean
+	rm -rf tests/.zig-cache tests/zig-out tui/.zig-cache tui/zig-out
+	rm -rf report/data
+	cd report && latexmk -C main.tex >/dev/null 2>&1 || true
+	rm -f report/main.aux report/main.bbl report/main.blg report/main.fdb_latexmk report/main.fls report/main.out report/main.log report/main.pdf
 
 format:
 	find src include -type f \( -name '*.c' -o -name '*.h' \) -exec clang-format -i {} +

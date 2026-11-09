@@ -50,7 +50,7 @@
         discard if not={dataset}{cal_random},
         discard if not={n}{10000}
     ] {data/calibration_m.csv};
-\addlegendentry{\texttt{cal\_random}}
+\addlegendentry{Aleatório}
 
 \addplot[color=orange!85!black, mark=triangle*, mark size=1.1pt, semithick]
     table [
@@ -60,7 +60,7 @@
         discard if not={dataset}{cal_partial},
         discard if not={n}{10000}
     ] {data/calibration_m.csv};
-\addlegendentry{\texttt{cal\_partial}}
+\addlegendentry{Parcialmente ordenado}
 
 \addplot[color=teal!80!black, mark=diamond*, mark size=1.1pt, semithick]
     table [
@@ -70,7 +70,7 @@
         discard if not={dataset}{cal_repeated},
         discard if not={n}{10000}
     ] {data/calibration_m.csv};
-\addlegendentry{\texttt{cal\_repeated}}
+\addlegendentry{Chaves repetidas}
 
 \draw[dashed, red!80!black, semithick] ({axis cs:50,0} |- {rel axis cs:0,0}) -- ({axis cs:50,0} |- {rel axis cs:0,1})
     node[pos=0.92, anchor=east, font=\scriptsize\bfseries, text=red!80!black] {$M^*=50$};
@@ -130,6 +130,6 @@
 \end{minipage}\\[1.2ex]
 \pgfplotslegendfromname{leg:calibracao-m}
 \vspace{-0.5ex}
-\caption{Calibração do limiar $M \in [0, 64]$ sobre \texttt{cal\_random}, \texttt{cal\_partial} e \texttt{cal\_repeated} para $N \in \{10^4, 5\times 10^4\}$. O platô ótimo situa-se na faixa $M \in [30, 64]$, justificando a seleção uniforme de $M^* = 50$.}
+\caption{Calibração do limiar $M \in [0, 64]$ sobre arranjos aleatórios, com ordenação parcial e com repetições para $N \in \{10^4, 5\times 10^4\}$. O platô ótimo situa-se na faixa $M \in [30, 64]$, justificando a seleção uniforme de $M^* = 50$.}
 \label{fig:calibracao-m}
 \end{figure}

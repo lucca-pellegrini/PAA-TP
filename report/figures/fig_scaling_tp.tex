@@ -14,38 +14,40 @@
 }
 \begin{figure}[htbp]
 \centering
+\begin{minipage}{0.485\columnwidth}
+\centering
 \begin{tikzpicture}
 \begin{axis}[
-    width=0.92\columnwidth,
-    height=8.4cm,
+    width=\linewidth,
+    height=6.0cm,
     xmode=log,
     ymode=log,
     log basis x={10},
     log basis y={10},
     xlabel={Dimensão do vetor ($n$)},
     ylabel={Tempo médio (\unit{\milli\second})},
-    xmin=800, xmax=65000,
-    ymin=0.002, ymax=200,
-    xtick={1000, 5000, 10000, 50000},
-    xticklabels={$10^3$, $5\times 10^3$, $10^4$, $5\times 10^4$},
+    title={(a) Cargas Canônicas ($n \le 10^8$)},
+    title style={font=\footnotesize\bfseries, yshift=-1.5ex},
+    xmin=800, xmax=130000000,
+    ymin=0.001, ymax=25000,
+    xtick={1000, 10000, 100000, 1000000, 10000000, 100000000},
+    xticklabels={$10^3$, $10^4$, $10^5$, $10^6$, $10^7$, $10^8$},
     tick label style={font=\tiny},
     label style={font=\scriptsize},
     grid=major,
     grid style={dashed, gray!30},
+    legend to name=leg:scaling-tp-left,
     legend style={
-        at={(0.5, 1.03)},
-        anchor=south,
-        legend columns=3,
-        legend cell align=left,
-        font=\scriptsize,
+        font=\tiny,
+        legend columns=2,
+        draw=gray!40,
         fill=white,
         fill opacity=0.9,
-        draw=gray!40,
-        /tikz/every even column/.append style={column sep=0.5em}
+        /tikz/every even column/.append style={column sep=0.8em}
     },
     unbounded coords=discard
 ]
-\addplot[color=blue!80!black, mark=square*, mark size=1.1pt, semithick]
+\addplot[color=blue!80!black, mark=square*, mark size=1.0pt, semithick]
     table [
         col sep=comma,
         x=n,
@@ -53,9 +55,9 @@
         discard if not={dataset}{random},
         discard if not={variant}{trad}
     ] {data/tp_official.csv};
-\addlegendentry{\texttt{random} -- Tradicional}
+\addlegendentry{Aleatório -- Tradicional (Hoare centro)}
 
-\addplot[color=cyan!80!black, mark=triangle*, mark size=1.2pt, semithick, dashed]
+\addplot[color=cyan!80!black, mark=triangle*, mark size=1.1pt, semithick, dashed]
     table [
         col sep=comma,
         x=n,
@@ -63,9 +65,9 @@
         discard if not={dataset}{random},
         discard if not={variant}{hybrid}
     ] {data/tp_official.csv};
-\addlegendentry{\texttt{random} -- Híbrido ($M=50$)}
+\addlegendentry{Aleatório -- Híbrido ($M=50$)}
 
-\addplot[color=teal!80!black, mark=diamond*, mark size=1.2pt, semithick]
+\addplot[color=teal!80!black, mark=diamond*, mark size=1.1pt, semithick]
     table [
         col sep=comma,
         x=n,
@@ -73,9 +75,9 @@
         discard if not={dataset}{random},
         discard if not={variant}{hybrid_med3}
     ] {data/tp_official.csv};
-\addlegendentry{\texttt{random} -- Híb.+Med3 ($M=50$)}
+\addlegendentry{Aleatório -- Híb.+Med3 ($M=50$)}
 
-\addplot[color=red!80!black, mark=otimes*, mark size=1.2pt, semithick]
+\addplot[color=green!60!black, mark=o, mark size=1.0pt, semithick]
     table [
         col sep=comma,
         x=n,
@@ -83,19 +85,74 @@
         discard if not={dataset}{sorted},
         discard if not={variant}{trad}
     ] {data/tp_official.csv};
-\addlegendentry{\texttt{sorted} -- Tradicional (Lomuto)}
+\addlegendentry{Ordenado -- Tradicional (Hoare centro)}
 
-\addplot[color=olive!80!black, mark=star, mark size=1.4pt, semithick]
+\addplot[color=red!80!black, mark=otimes*, mark size=1.1pt, semithick]
     table [
         col sep=comma,
         x=n,
         y=mean_ms,
         discard if not={dataset}{sorted},
-        discard if not={variant}{hybrid_med3}
+        discard if not={variant}{trad_fixed}
     ] {data/tp_official.csv};
-\addlegendentry{\texttt{sorted} -- Híb.+Med3 ($M=50$)}
+\addlegendentry{Ordenado -- Pivô fixo (Hoare primeiro)}
 
-\addplot[color=purple!80!black, mark=x, mark size=1.5pt, semithick, dashdotted]
+\addplot[color=orange!80!black, mark=pentagon*, mark size=1.1pt, semithick, densely dotted]
+    table [
+        col sep=comma,
+        x=n,
+        y=mean_ms,
+        discard if not={dataset}{repeated},
+        discard if not={variant}{trad}
+    ] {data/tp_official.csv};
+\addlegendentry{Repetido -- Tradicional (Hoare centro)}
+
+\addplot[color=purple!80!black, mark=star, mark size=1.2pt, semithick, dashdotted]
+    table [
+        col sep=comma,
+        x=n,
+        y=mean_ms,
+        discard if not={dataset}{worst_case},
+        discard if not={variant}{trad_fixed}
+    ] {data/tp_official.csv};
+\addlegendentry{Pior caso -- Pivô fixo (Hoare primeiro)}
+\end{axis}
+\end{tikzpicture}
+\end{minipage}\hfill
+\begin{minipage}{0.485\columnwidth}
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+    width=\linewidth,
+    height=6.0cm,
+    xmode=log,
+    ymode=log,
+    log basis x={10},
+    log basis y={10},
+    xlabel={Dimensão do vetor ($n$)},
+    ylabel={Tempo médio (\unit{\milli\second})},
+    title={(b) Piores Casos e Adversários ($n \le 10^5$)},
+    title style={font=\footnotesize\bfseries, yshift=-1.5ex},
+    xmin=800, xmax=130000,
+    ymin=0.001, ymax=300,
+    xtick={1000, 10000, 100000},
+    xticklabels={$10^3$, $10^4$, $10^5$},
+    tick label style={font=\tiny},
+    label style={font=\scriptsize},
+    grid=major,
+    grid style={dashed, gray!30},
+    legend to name=leg:scaling-tp-right,
+    legend style={
+        font=\tiny,
+        legend columns=2,
+        draw=gray!40,
+        fill=white,
+        fill opacity=0.9,
+        /tikz/every even column/.append style={column sep=0.8em}
+    },
+    unbounded coords=discard
+]
+\addplot[color=purple!80!black, mark=x, mark size=1.4pt, semithick, dashdotted]
     table [
         col sep=comma,
         x=n,
@@ -103,13 +160,66 @@
         discard if not={dataset}{worst_case_med3},
         discard if not={variant}{hybrid_med3}
     ] {data/tp_official.csv};
-\addlegendentry{\texttt{worst\_med3} -- Híb.+Med3 ($M=50$)}
+\addlegendentry{Pior caso Med3 -- Híb.+Med3}
 
-\node[font=\scriptsize\bfseries, text=red!80!black, anchor=south east] at (axis cs:4600,16) {$\dagger$ Fallback Heapsort ($d \ge 4096$)};
-\draw[->, >=stealth, red!80!black, semithick] (axis cs:4200,15) -- (axis cs:4900,8.8);
+\addplot[color=blue!80!black, mark=square*, mark size=1.0pt, semithick, dashed]
+    table [
+        col sep=comma,
+        x=n,
+        y=mean_ms,
+        discard if not={dataset}{worst_case_med3},
+        discard if not={variant}{trad}
+    ] {data/tp_official.csv};
+\addlegendentry{Pior caso Med3 -- Tradicional}
+
+\addplot[color=red!80!black, mark=otimes*, mark size=1.1pt, semithick]
+    table [
+        col sep=comma,
+        x=n,
+        y=mean_ms,
+        discard if not={dataset}{worst_case_med3},
+        discard if not={variant}{trad_fixed}
+    ] {data/tp_official.csv};
+\addlegendentry{Pior caso Med3 -- Pivô fixo}
+
+\addplot[color=teal!80!black, mark=diamond*, mark size=1.1pt, semithick, dotted]
+    table [
+        col sep=comma,
+        x=n,
+        y=mean_ms,
+        discard if not={dataset}{worst_case_med3},
+        discard if not={variant}{hybrid}
+    ] {data/tp_official.csv};
+\addlegendentry{Pior caso Med3 -- Híbrido}
+
+\addplot[color=olive!80!black, mark=triangle*, mark size=1.2pt, semithick]
+    table [
+        col sep=comma,
+        x=n,
+        y=mean_ms,
+        discard if not={dataset}{sorted},
+        discard if not={variant}{hybrid_med3}
+    ] {data/tp_official.csv};
+\addlegendentry{Ordenado -- Híb.+Med3 ($M=50$)}
+
+\addplot[color=orange!80!black, mark=star, mark size=1.2pt, semithick, densely dashed]
+    table [
+        col sep=comma,
+        x=n,
+        y=mean_ms,
+        discard if not={dataset}{repeated},
+        discard if not={variant}{hybrid}
+    ] {data/tp_official.csv};
+\addlegendentry{Repetido -- Híbrido ($M=50$)}
+
+\node[font=\tiny\bfseries, text=red!80!black, anchor=south east] at (axis cs:90000,105) {$\dagger$ Limite recursão ($d \ge 4096$)};
+\draw[->, >=stealth, red!80!black, semithick] (axis cs:60000,100) -- (axis cs:35000,50);
 \end{axis}
 \end{tikzpicture}
-\vspace{-1ex}
-\caption{Escalabilidade assintótica (escala log-log) do tempo de execução em função de $n$. Sob vetores ordenados, o esquema tradicional (Lomuto com pivô fixo) degenera quadraticamente até a ativação da salvaguarda de introsort ($d \ge 4096$), enquanto a Mediana de Três preserva o regime ideal ($\approx 0{,}36\text{ ms}$ em $n=50\,000$).}
+\end{minipage}\\[1.2ex]
+\pgfplotslegendfromname{leg:scaling-tp-left}\\[0.6ex]
+\pgfplotslegendfromname{leg:scaling-tp-right}
+\vspace{-0.5ex}
+\caption{Escalabilidade assintótica (escala log-log) do tempo médio em função de $n$. No painel (a), a linha de base tradicional com Hoare e elemento central preserva regime linear-logarítmico em vetores ordenados e repetidos, ao passo que a escolha de pivô fixo degenera quadraticamente. No painel (b), o adversário determinístico de McIlroy precipita o colapso quadrático de todas as variantes baseadas em mediana de três ou elemento central a partir de $n \ge 15\,000$, deflagrando a salvaguarda de profundidade recursiva ($d \ge 4096$).}
 \label{fig:scaling-tp}
 \end{figure}

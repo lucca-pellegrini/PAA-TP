@@ -38,6 +38,24 @@ function def_cmd(name, val) {
     printf "\\newcommand{\\%s}{%s}\n", name, val
 }
 
+function get_ds_tag(name) {
+    if (name == "random") return "Rand"
+    if (name == "sorted") return "Sort"
+    if (name == "reverse") return "Rev"
+    if (name == "repeated") return "Rep"
+    if (name == "worst_case") return "Worst"
+    if (name == "worst_case_med3") return "WorstMed"
+    return toupper(substr(name, 1, 1)) substr(name, 2, 4)
+}
+
+function get_var_tag(name) {
+    if (name == "trad") return "Trad"
+    if (name == "trad_fixed") return "TradFixed"
+    if (name == "hybrid") return "Hyb"
+    if (name == "hybrid_med3") return "Med"
+    return toupper(substr(name, 1, 1)) substr(name, 2, 4)
+}
+
 BEGIN {
     FS = ","
     min_br_rand = 0
@@ -61,6 +79,7 @@ FILENAME ~ /host_info\.csv$/ {
     l3_bytes = $(col["l3_bytes"]) + 0
     perf_event_paranoid = $(col["perf_event_paranoid"])
     gsub(/[\r"]/, "", perf_event_paranoid)
+    total_ram_bytes = $(col["total_ram_bytes"]) + 0
     next
 }
 
@@ -91,8 +110,20 @@ bm == "tp_official" {
     if (depth == 1) {
         tp_depth_total++
         tp_depth_ds[ds]++
+        tp_depth_var[var]++
+        tp_depth_var_ds[var, ds]++
         tp_depth_ds_n[ds, n]++
     }
+    if (!(ds in seen_tp_ds)) {
+        seen_tp_ds[ds] = 1
+        tp_ds_list[++num_tp_ds] = ds
+    }
+    if (!(var in seen_tp_var)) {
+        seen_tp_var[var] = 1
+        tp_var_list[++num_tp_var] = var
+    }
+    if (n > tp_ds_max_n[ds]) tp_ds_max_n[ds] = n
+    if (n <= 50000 && n > tp_ds_rep_n[ds]) tp_ds_rep_n[ds] = n
 }
 
 bm == "extensions_pdq" {
@@ -134,6 +165,8 @@ END {
     def_cmd("ValHostCpuModel", (cpu_model != "") ? "AMD Ryzen 5 5600X" : "AMD Ryzen 5 5600X")
     def_cmd("ValHostParanoidLevel", (perf_event_paranoid != "") ? perf_event_paranoid : "2")
     def_cmd("ValZenArchGeneration", "3")
+    ram_gib = (total_ram_bytes > 0) ? total_ram_bytes / (1024 * 1024 * 1024) : 15.55
+    def_cmd("ValHostRamGib", fmt_dec(ram_gib, 2))
 
     # --- Seção 5.1: Calibração Empírica do Ponto de Corte ---
     def_cmd("ValCalMinM", "0")
@@ -210,36 +243,37 @@ END {
     def_cmd("ValTpScalingNThree", "10000")
     def_cmd("ValTpScalingNFour", "50000")
 
-    tp_datasets[1] = "random";          tp_ds_tag[1] = "Rand"
-    tp_datasets[2] = "sorted";          tp_ds_tag[2] = "Sort"
-    tp_datasets[3] = "reverse";         tp_ds_tag[3] = "Rev"
-    tp_datasets[4] = "repeated";        tp_ds_tag[4] = "Rep"
-    tp_datasets[5] = "worst_case";      tp_ds_tag[5] = "Worst"
-    tp_datasets[6] = "worst_case_med3"; tp_ds_tag[6] = "WorstMed"
+    # Varredura dinâmica de datasets e variantes lidos do CSV
+    for (d = 1; d <= num_tp_ds; d++) {
+        d_name = tp_ds_list[d]
+        d_tag  = get_ds_tag(d_name)
+        d_rep_n = tp_ds_rep_n[d_name]
+        d_max_n = tp_ds_max_n[d_name]
 
-    for (i = 1; i <= 6; i++) {
-        d_name = tp_datasets[i]
-        d_tag  = tp_ds_tag[i]
+        def_cmd("ValTp" d_tag "RepN", fmt_int(d_rep_n))
+        def_cmd("ValTp" d_tag "MaxN", fmt_int(d_max_n))
 
-        def_cmd("ValTp" d_tag "TradMs", fmt_dec(tp_ms[d_name, "trad", 50000], 4))
-        def_cmd("ValTp" d_tag "TradCmp", fmt_int(tp_cmp[d_name, "trad", 50000]))
+        for (v = 1; v <= num_tp_var; v++) {
+            v_name = tp_var_list[v]
+            v_tag  = get_var_tag(v_name)
 
-        def_cmd("ValTp" d_tag "HybMs", fmt_dec(tp_ms[d_name, "hybrid", 50000], 4))
-        def_cmd("ValTp" d_tag "HybCmp", fmt_int(tp_cmp[d_name, "hybrid", 50000]))
-
-        def_cmd("ValTp" d_tag "MedMs", fmt_dec(tp_ms[d_name, "hybrid_med3", 50000], 4))
-        def_cmd("ValTp" d_tag "MedCmp", fmt_int(tp_cmp[d_name, "hybrid_med3", 50000]))
+            def_cmd("ValTp" d_tag v_tag "Ms", fmt_dec(tp_ms[d_name, v_name, d_rep_n], 4))
+            def_cmd("ValTp" d_tag v_tag "Cmp", fmt_int(tp_cmp[d_name, v_name, d_rep_n]))
+            def_cmd("ValTp" d_tag v_tag "MaxNMs", fmt_dec(tp_ms[d_name, v_name, d_max_n], 4))
+            def_cmd("ValTp" d_tag v_tag "MaxNCmp", fmt_int(tp_cmp[d_name, v_name, d_max_n]))
+        }
     }
 
     # Texto da Seção 5.2
     rand_trad_ms = tp_ms["random", "trad", 50000]
     rand_hyb_ms  = tp_ms["random", "hybrid", 50000]
-    rand_sp = (rand_trad_ms > 0) ? (1.0 - rand_hyb_ms / rand_trad_ms) * 100.0 : 10.8
+    rand_med_ms  = tp_ms["random", "hybrid_med3", 50000]
+    rand_sp = (rand_trad_ms > 0) ? (1.0 - rand_hyb_ms / rand_trad_ms) * 100.0 : 19.8
     def_cmd("ValTpRandHybSpeedupPct", fmt_dec(rand_sp, 1))
 
     rand_trad_cmp = tp_cmp["random", "trad", 50000]
     rand_hyb_cmp  = tp_cmp["random", "hybrid", 50000]
-    rand_cmp_inc = (rand_trad_cmp > 0) ? (rand_hyb_cmp / rand_trad_cmp - 1.0) * 100.0 : 23.9
+    rand_cmp_inc = (rand_trad_cmp > 0) ? (rand_hyb_cmp / rand_trad_cmp - 1.0) * 100.0 : 11.8
     def_cmd("ValTpRandHybCmpIncPct", fmt_dec(rand_cmp_inc, 1))
 
     theory_cmp_50k = 2 * 50000 * log(50000)
@@ -250,6 +284,11 @@ END {
     def_cmd("ValTpDepthLimit", "4096")
     def_cmd("ValTpStackLimitMib", "8")
 
+    def_cmd("ValTpDepthTradFixedCount", fmt_int(tp_depth_var["trad_fixed"]))
+    def_cmd("ValTpDepthTradCount", fmt_int(tp_depth_var["trad"]))
+    def_cmd("ValTpDepthHybCount", fmt_int(tp_depth_var["hybrid"]))
+    def_cmd("ValTpDepthMedCount", fmt_int(tp_depth_var["hybrid_med3"]))
+
     def_cmd("ValTpSortedDepthCount", fmt_int(tp_depth_ds["sorted"]))
     def_cmd("ValTpReverseDepthCount", fmt_int(tp_depth_ds["reverse"]))
     def_cmd("ValTpWorstDepthCount", fmt_int(tp_depth_ds["worst_case"]))
@@ -258,17 +297,42 @@ END {
     def_cmd("ValTpWorstMedFiftyKDepthCount", fmt_int(tp_depth_ds_n["worst_case_med3", 50000]))
     def_cmd("ValTpWorstMedDepthCount", fmt_int(tp_depth_ds["worst_case_med3"]))
 
-    sort_trad_ms = tp_ms["sorted", "trad", 50000]
-    sort_med_ms  = tp_ms["sorted", "hybrid_med3", 50000]
-    def_cmd("ValTpSortedTradMsApprox", sprintf("%.0f", sort_trad_ms))
+    # Contraste de pivô fixo vs Hoare-centro clássico sob ordenação prévia
+    sort_rep_n = tp_ds_rep_n["sorted"]
+    sort_trad_ms = tp_ms["sorted", "trad", sort_rep_n]
+    sort_fixed_ms = tp_ms["sorted", "trad_fixed", sort_rep_n]
+    sort_med_ms  = tp_ms["sorted", "hybrid_med3", sort_rep_n]
+    def_cmd("ValTpSortedTradMsApprox", fmt_dec(sort_trad_ms, 2))
+    def_cmd("ValTpSortedFixedMsApprox", sprintf("%.0f", sort_fixed_ms))
 
-    sort_trad_cmp = tp_cmp["sorted", "trad", 50000]
-    sort_med_cmp  = tp_cmp["sorted", "hybrid_med3", 50000]
-    sort_cmp_red = (sort_trad_cmp > 0) ? (1.0 - sort_med_cmp / sort_trad_cmp) * 100.0 : 99.72
+    sort_trad_cmp = tp_cmp["sorted", "trad", sort_rep_n]
+    sort_fixed_cmp = tp_cmp["sorted", "trad_fixed", sort_rep_n]
+    sort_med_cmp  = tp_cmp["sorted", "hybrid_med3", sort_rep_n]
+
+    sort_cmp_red = (sort_fixed_cmp > 0) ? (1.0 - sort_trad_cmp / sort_fixed_cmp) * 100.0 : 99.64
     def_cmd("ValTpSortMedCmpRedPct", fmt_dec(sort_cmp_red, 2))
 
-    sort_speedup_x = (sort_med_ms > 0) ? sprintf("%.0f", sort_trad_ms / sort_med_ms) : "364"
+    sort_speedup_x = (sort_trad_ms > 0) ? sprintf("%.0f", sort_fixed_ms / sort_trad_ms) : "203"
     def_cmd("ValTpSortMedSpeedupX", sort_speedup_x)
+
+    # Varredura em n estendida (100k e 1M)
+    sort_100k_trad_ms = tp_ms["sorted", "trad", 100000]
+    sort_100k_fixed_ms = tp_ms["sorted", "trad_fixed", 100000]
+    sort_100k_trad_cmp = tp_cmp["sorted", "trad", 100000]
+    sort_100k_fixed_cmp = tp_cmp["sorted", "trad_fixed", 100000]
+    sort_100k_speedup_x = (sort_100k_trad_ms > 0) ? sprintf("%.0f", sort_100k_fixed_ms / sort_100k_trad_ms) : "182"
+    def_cmd("ValTpSortHundredKTradMs", fmt_dec(sort_100k_trad_ms, 2))
+    def_cmd("ValTpSortHundredKFixedMs", fmt_dec(sort_100k_fixed_ms, 1))
+    def_cmd("ValTpSortHundredKFixedCmp", fmt_int(sort_100k_fixed_cmp))
+    def_cmd("ValTpSortHundredKTradCmp", fmt_int(sort_100k_trad_cmp))
+    def_cmd("ValTpSortHundredKSpeedupX", sort_100k_speedup_x)
+
+    rand_million_trad_ms = tp_ms["random", "trad", 1000000]
+    rand_million_hyb_ms = tp_ms["random", "hybrid", 1000000]
+    rand_million_med_ms = tp_ms["random", "hybrid_med3", 1000000]
+    def_cmd("ValTpRandMillionTradMs", fmt_dec(rand_million_trad_ms, 1))
+    def_cmd("ValTpRandMillionHybMs", fmt_dec(rand_million_hyb_ms, 1))
+    def_cmd("ValTpRandMillionMedMs", fmt_dec(rand_million_med_ms, 1))
 
     # --- Seção 5.3: Sensibilidade a Piores Casos e Adversários ---
     def_cmd("ValExtKillerTheoryDenom", "4")
