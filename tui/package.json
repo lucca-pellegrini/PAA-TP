@@ -1,0 +1,10 @@
+{
+	"name": "qs-tui",
+	"version": "0.1.0",
+	"private": true,
+	"type": "module",
+	"description": "Optional OpenTUI dashboard plugin for the Quicksort benchmark runner",
+	"dependencies": {
+		"@opentui/core": "^0.7.0"
+	}
+}
