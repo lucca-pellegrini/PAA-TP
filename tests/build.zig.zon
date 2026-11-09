@@ -1,0 +1,14 @@
+.{
+    .name = .quicksort_tests,
+    .version = "0.1.0",
+    .fingerprint = 0xe28b03e34894a8d4,
+    .minimum_zig_version = "0.17.0",
+    .dependencies = .{},
+    .paths = .{
+        "build.zig",
+        "build.zig.zon",
+        "runner.zig",
+        "tests.zig",
+        "suite",
+    },
+}
