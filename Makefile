@@ -86,12 +86,13 @@ pgo:
 	$(MAKE) clean
 	$(MAKE) CFLAGS="-fprofile-generate" LDFLAGS="-fprofile-generate"
 	@for sim in simulations/0*.qs simulations/1*.qs; do \
-		[ -f "$$sim" ] && __QS_UI_SHUT_UP=1 ./$(TARGET) --no-tui "$$sim" >/dev/null || true; \
+			[ -f "$$sim" ] && LLVM_PROFILE_FILE="$(CURDIR)/pgo_%p.profraw" __QS_UI_SHUT_UP=1 ./$(TARGET) --no-tui "$$sim" >/dev/null || true; \
 	done
-	llvm-profdata merge -output=default.profdata default.profraw
+	llvm-profdata merge -output=default.profdata pgo_*.profraw
+	rm -f pgo_*.profraw
 	$(MAKE) clean-KeepProf
 	$(MAKE) CFLAGS="-fprofile-use=default.profdata" LDFLAGS="-fprofile-use=default.profdata"
-	rm -f default.profdata default.profraw
+	rm -f default.profdata
 
 report: $(TARGET)
 	./$(TARGET) --no-tui --host-info-tex report/data/host_info.tex --host-info-csv report/data/host_info.csv
