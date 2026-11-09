@@ -47,7 +47,7 @@ variant trad {
 	cutoff = 0;
 	small_sort = none;
 	execution = recursive;
-	max_depth = 65536;
+	max_depth = 4096; // stack-safe limit: records depth_exceeded instead of overflowing the 8 MB stack
 }
 
 variant hybrid {
@@ -56,7 +56,7 @@ variant hybrid {
 	cutoff = 16;
 	small_sort = insertion;
 	execution = recursive;
-	max_depth = 65536;
+	max_depth = 4096; // stack-safe limit: records depth_exceeded instead of overflowing the 8 MB stack
 }
 
 variant hybrid_med3 {
@@ -65,7 +65,7 @@ variant hybrid_med3 {
 	cutoff = 16;
 	small_sort = insertion;
 	execution = recursive;
-	max_depth = 65536;
+	max_depth = 4096; // stack-safe limit: records depth_exceeded instead of overflowing the 8 MB stack
 }
 
 benchmark tp_official {
