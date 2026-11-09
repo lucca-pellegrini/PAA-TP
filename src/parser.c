@@ -169,6 +169,7 @@ void qs_sim_plan_init(QsSimPlan *plan)
 	plan->host.repetitions = 5;
 	plan->host.warmup = 1;
 	plan->host.seed = 42;
+	plan->host.enable_pmu = true; /* degrades per counter when unavailable */
 }
 
 void qs_sim_plan_destroy(QsSimPlan *plan)
