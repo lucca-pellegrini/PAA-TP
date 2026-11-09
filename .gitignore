@@ -1,0 +1,40 @@
+# Build artifacts & caches
+build/
+quicksort
+compile_commands.json
+default.profraw
+default.profdata
+*.o
+*.so
+*.a
+*.d
+
+# Zig & Bun caches
+.zig-cache/
+zig-out/
+tests/.zig-cache/
+tests/zig-out/
+tui/.zig-cache/
+tui/zig-out/
+tui/node_modules/
+
+# LaTeX build artifacts
+report/*.aux
+report/*.bbl
+report/*.blg
+report/*.fdb_latexmk
+report/*.fls
+report/*.log
+report/*.out
+report/*.synctex.gz
+report/*.toc
+report/main.pdf
+
+# Reference directories & local notes (keep untracked)
+PLAN.md
+TP Quicksort.pdf
+Session.vim
+ac3-tp1/
+ac3-tp2/
+aeds2-lab06/
+calc2-tp1/

@@ -1,0 +1,61 @@
+[tools]
+zig = "0.17.1"
+bun = "1.4.4"
+tinytex = "2026.04"
+perl = "5.42.2"
+
+[tasks.setup-tex]
+description = "Survey report/*.tex and report/*.sty for missing packages and install them via tlmgr"
+run = """
+#!/usr/bin/env bash
+set -euo pipefail
+
+pkgs=()
+for sty in $(grep -rhE '\\\\(usepackage|RequirePackage)(\\[[^]]*\\])?\\{[^}]+\\}' report/ 2>/dev/null | sed -E 's/.*\\{([^}]+)\\}.*/\\1/' | tr ',' '\\n' | tr -d ' ' | sort -u); do
+  [[ "$sty" == "sbc-template" ]] && continue
+  if ! kpsewhich "${sty}.sty" >/dev/null 2>&1; then
+    echo "Missing ${sty}.sty, searching tlmgr..."
+    found=$(tlmgr search --global --file "/${sty}.sty" | awk '/^[^ \t].*:$/{gsub(":", "", $1); print $1}' | head -n 1)
+    if [[ -n "$found" ]]; then
+      pkgs+=("$found")
+    else
+      pkgs+=("$sty")
+    fi
+  fi
+done
+
+for extra in babel-portuges hyphen-portuguese pgfplots pgfplotstable siunitx booktabs newtx microtype cleveref embedfile latexmk; do
+  if ! tlmgr info --only-installed "$extra" 2>/dev/null | grep -q "installed: Yes"; then
+    pkgs+=("$extra")
+  fi
+done
+
+if [[ ${#pkgs[@]} -gt 0 ]]; then
+  mapfile -t unique_pkgs < <(printf "%s\\n" "${pkgs[@]}" | sort -u)
+  echo "Installing TeX packages: ${unique_pkgs[*]}"
+  tlmgr install "${unique_pkgs[@]}"
+  fmtutil-user --all >/dev/null 2>&1 || true
+else
+  echo "All required TeX packages are already installed."
+fi
+"""
+
+[tasks.setup-tui]
+description = "Install @opentui/core in tui/ via Bun and build build/libqs_tui.so via Zig"
+run = """
+#!/usr/bin/env bash
+set -euo pipefail
+mkdir -p build
+cd tui
+bun install
+zig build -Doptimize=ReleaseFast
+cp -f zig-out/lib/libqs_tui.so ../build/libqs_tui.so
+"""
+
+[tasks.test]
+description = "Run the Zig unit and fuzz test suite in tests/"
+run = "make test"
+
+[tasks.report]
+description = "Run canonical report benchmarks and build report/main.pdf via latexmk"
+run = "make report"
