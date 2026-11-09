@@ -60,7 +60,7 @@ variant hybrid {
 }
 
 variant hybrid_med3 {
-	partition = hoare;
+	partition = lomuto;
 	pivot = median3;
 	cutoff = 50;
 	small_sort = insertion;
