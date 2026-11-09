@@ -77,10 +77,92 @@ fn getMonotonicNs() u64 {
 
 fn getTerminalCols() usize {
     var ws: Winsize = undefined;
-    if (ioctl(2, 0x5413, &ws) == 0 and ws.ws_col >= 40) { // TIOCGWINSZ = 0x5413
-        return @intCast(ws.ws_col);
+    if (ioctl(2, 0x5413, &ws) == 0 or ioctl(1, 0x5413, &ws) == 0 or ioctl(0, 0x5413, &ws) == 0) { // TIOCGWINSZ = 0x5413
+        if (ws.ws_col >= 120) return @intCast(ws.ws_col);
     }
-    return 100;
+    return 120;
+}
+
+fn countDisplayWidth(s: []const u8) usize {
+    var cols: usize = 0;
+    var i: usize = 0;
+    while (i < s.len) {
+        if (s[i] == 0x1b) {
+            i += 1;
+            if (i < s.len and s[i] == '[') {
+                i += 1;
+                while (i < s.len and !(s[i] >= 0x40 and s[i] <= 0x7e)) : (i += 1) {}
+                if (i < s.len) i += 1;
+            } else if (i < s.len) {
+                i += 1;
+            }
+        } else if ((s[i] & 0x80) == 0) {
+            if (s[i] >= 0x20 and s[i] <= 0x7e) cols += 1;
+            i += 1;
+        } else if ((s[i] & 0xe0) == 0xc0) {
+            cols += 1;
+            i = @min(i + 2, s.len);
+        } else if ((s[i] & 0xf0) == 0xe0) {
+            cols += 1;
+            i = @min(i + 3, s.len);
+        } else if ((s[i] & 0xf8) == 0xf0) {
+            cols += 1;
+            i = @min(i + 4, s.len);
+        } else {
+            i += 1;
+        }
+    }
+    return cols;
+}
+
+fn writePaddedOrTruncated(bw: *BufferWriter, s: []const u8, target_w: usize) void {
+    var cols: usize = 0;
+    var i: usize = 0;
+    while (i < s.len) {
+        if (s[i] == 0x1b) {
+            const start = i;
+            i += 1;
+            if (i < s.len and s[i] == '[') {
+                i += 1;
+                while (i < s.len and !(s[i] >= 0x40 and s[i] <= 0x7e)) : (i += 1) {}
+                if (i < s.len) i += 1;
+            } else if (i < s.len) {
+                i += 1;
+            }
+            bw.writeAll(s[start..i]);
+        } else {
+            const start = i;
+            var char_cols: usize = 0;
+            if ((s[i] & 0x80) == 0) {
+                if (s[i] >= 0x20 and s[i] <= 0x7e) char_cols = 1;
+                i += 1;
+            } else if ((s[i] & 0xe0) == 0xc0) {
+                char_cols = 1;
+                i = @min(i + 2, s.len);
+            } else if ((s[i] & 0xf0) == 0xe0) {
+                char_cols = 1;
+                i = @min(i + 3, s.len);
+            } else if ((s[i] & 0xf8) == 0xf0) {
+                char_cols = 1;
+                i = @min(i + 4, s.len);
+            } else {
+                i += 1;
+            }
+
+            if (char_cols > 0) {
+                if (cols + char_cols <= target_w) {
+                    bw.writeAll(s[start..i]);
+                    cols += char_cols;
+                }
+            }
+        }
+    }
+
+    bw.writeAll("\x1b[0m");
+
+    while (cols < target_w) : (cols += 1) {
+        bw.writeByte(' ');
+    }
 }
 
 const BufferWriter = struct {
@@ -225,7 +307,7 @@ pub const QsTuiContext = struct {
             self.has_rendered = true;
         }
 
-        const width = @min(@max(getTerminalCols(), 80), 120);
+        const width = getTerminalCols();
         const inner_w = width - 2;
 
         const spinner = THROBBER_FRAMES[self.tick % THROBBER_FRAMES.len];
@@ -237,26 +319,27 @@ pub const QsTuiContext = struct {
         self.renderBorderLine(&bw, "╭", "─", "╮", inner_w);
 
         // Line 2: Header title bar
-        bw.print("\x1b[2K\x1b[38;2;{d};{d};{d}m│\x1b[0m ", .{ Color.border_focus.r, Color.border_focus.g, Color.border_focus.b });
-        bw.print("\x1b[1;38;2;{d};{d};{d}m{s}\x1b[0m ", .{ Color.mauve.r, Color.mauve.g, Color.mauve.b, spinner });
-        bw.print("\x1b[1;38;2;{d};{d};{d}mQUICKSORT BENCHMARK\x1b[0m", .{ Color.text_bright.r, Color.text_bright.g, Color.text_bright.b });
-        bw.print(" \x1b[38;2;{d};{d};{d}m│\x1b[0m ", .{ Color.border_dim.r, Color.border_dim.g, Color.border_dim.b });
-        bw.print("\x1b[38;2;{d};{d};{d}m{s}:{s}/{s}\x1b[0m", .{ Color.teal.r, Color.teal.g, Color.teal.b, bench, var_name, ds });
+        {
+            var line_buf: [2048]u8 = undefined;
+            var lbw = BufferWriter{ .buf = &line_buf };
+            lbw.writeAll(" ");
+            lbw.print("\x1b[1;38;2;{d};{d};{d}m{s}\x1b[0m ", .{ Color.mauve.r, Color.mauve.g, Color.mauve.b, spinner });
+            lbw.print("\x1b[1;38;2;{d};{d};{d}mQUICKSORT BENCHMARK\x1b[0m", .{ Color.text_bright.r, Color.text_bright.g, Color.text_bright.b });
+            lbw.print(" \x1b[38;2;{d};{d};{d}m│\x1b[0m ", .{ Color.border_dim.r, Color.border_dim.g, Color.border_dim.b });
+            lbw.print("\x1b[38;2;{d};{d};{d}m{s}:{s}/{s}\x1b[0m", .{ Color.teal.r, Color.teal.g, Color.teal.b, bench, var_name, ds });
 
-        // Right-aligned badges (COLD / WARM and OK / FAIL)
-        const cold_badge = "\x1b[48;2;49;50;68m\x1b[38;2;137;180;250m COLD 2xLLC \x1b[0m";
-        const ok_badge = "\x1b[48;2;30;46;30m\x1b[38;2;166;227;161m VERIFIED OK \x1b[0m";
-        const prefix_len = 2 + 1 + 19 + 3 + bench.len + 1 + var_name.len + 1 + ds.len;
-        const badges_len = 12 + 13 + 1;
-        if (inner_w > prefix_len + badges_len) {
-            const pad = inner_w - prefix_len - badges_len;
-            self.writeSpaces(&bw, pad);
-            bw.print("{s} {s}", .{ cold_badge, ok_badge });
-        } else {
-            const pad = if (inner_w > prefix_len) inner_w - prefix_len else 0;
-            self.writeSpaces(&bw, pad);
+            const cold_badge = "\x1b[48;2;49;50;68m\x1b[38;2;137;180;250m COLD 2xLLC \x1b[0m";
+            const ok_badge = "\x1b[48;2;30;46;30m\x1b[38;2;166;227;161m VERIFIED OK \x1b[0m";
+            const left_cols = countDisplayWidth(lbw.getWritten());
+            const badges_cols = 12 + 1 + 13 + 1; // 27 cols
+            if (inner_w > left_cols + badges_cols) {
+                const pad = inner_w - left_cols - badges_cols;
+                var p: usize = 0;
+                while (p < pad) : (p += 1) lbw.writeByte(' ');
+                lbw.print("{s} {s} ", .{ cold_badge, ok_badge });
+            }
+            self.renderContentLine(&bw, lbw.getWritten(), inner_w);
         }
-        bw.print(" \x1b[38;2;{d};{d};{d}m│\x1b[0m\n", .{ Color.border_focus.r, Color.border_focus.g, Color.border_focus.b });
 
         // Line 3: Header-to-Progress divider
         self.renderBorderLine(&bw, "├", "─", "┤", inner_w);
@@ -265,37 +348,39 @@ pub const QsTuiContext = struct {
         const tot_steps = if (self.total_steps > 0) self.total_steps else 1;
         const cur_step = @min(self.current_step, tot_steps);
         const overall_pct = @as(f64, @floatFromInt(cur_step)) * 100.0 / @as(f64, @floatFromInt(tot_steps));
+        const bar_w: usize = if (inner_w > 55) inner_w - 48 else 20;
 
-        bw.print("\x1b[2K\x1b[38;2;{d};{d};{d}m│\x1b[0m ", .{ Color.border_focus.r, Color.border_focus.g, Color.border_focus.b });
-        bw.print("\x1b[1;38;2;{d};{d};{d}mOverall\x1b[0m   [", .{ Color.blue.r, Color.blue.g, Color.blue.b });
-        const bar_w: usize = if (inner_w > 45) inner_w - 38 else 20;
-        self.renderProgressBar(&bw, overall_pct, bar_w, Color.blue);
-        bw.print("] \x1b[1;38;2;{d};{d};{d}m{d: >5.1}%\x1b[0m ({d}/{d})", .{
-            Color.text_bright.r, Color.text_bright.g, Color.text_bright.b,
-            overall_pct,         cur_step,                 tot_steps,
-        });
-
-        var line_written: usize = 12 + bar_w + 2 + 8 + 14;
-        if (inner_w > line_written) self.writeSpaces(&bw, inner_w - line_written);
-        bw.print(" \x1b[38;2;{d};{d};{d}m│\x1b[0m\n", .{ Color.border_focus.r, Color.border_focus.g, Color.border_focus.b });
+        {
+            var line_buf: [2048]u8 = undefined;
+            var lbw = BufferWriter{ .buf = &line_buf };
+            lbw.writeAll(" ");
+            lbw.print("\x1b[1;38;2;{d};{d};{d}mOverall\x1b[0m   [", .{ Color.blue.r, Color.blue.g, Color.blue.b });
+            self.renderProgressBar(&lbw, overall_pct, bar_w, Color.blue);
+            lbw.print("] \x1b[1;38;2;{d};{d};{d}m{d: >5.1}%\x1b[0m ({d}/{d})", .{
+                Color.text_bright.r, Color.text_bright.g, Color.text_bright.b,
+                overall_pct,         cur_step,                 tot_steps,
+            });
+            self.renderContentLine(&bw, lbw.getWritten(), inner_w);
+        }
 
         // Line 5: Repetition Progress bar
         const tot_reps = if (self.latest.total_reps > 0) self.latest.total_reps else 1;
         const cur_rep = @min(self.latest.current_rep, tot_reps);
         const rep_pct = @as(f64, @floatFromInt(cur_rep)) * 100.0 / @as(f64, @floatFromInt(tot_reps));
 
-        bw.print("\x1b[2K\x1b[38;2;{d};{d};{d}m│\x1b[0m ", .{ Color.border_focus.r, Color.border_focus.g, Color.border_focus.b });
-        bw.print("\x1b[1;38;2;{d};{d};{d}mRepetition\x1b[0m[", .{ Color.teal.r, Color.teal.g, Color.teal.b });
-        self.renderProgressBar(&bw, rep_pct, bar_w, Color.teal);
-        bw.print("] \x1b[1;38;2;{d};{d};{d}m{d: >5.1}%\x1b[0m (rep {d}/{d}, n={d})", .{
-            Color.text_bright.r,   Color.text_bright.g,   Color.text_bright.b,
-            rep_pct,               cur_rep,               tot_reps,
-            self.latest.array_size,
-        });
-
-        line_written = 12 + bar_w + 2 + 8 + 20;
-        if (inner_w > line_written) self.writeSpaces(&bw, inner_w - line_written);
-        bw.print(" \x1b[38;2;{d};{d};{d}m│\x1b[0m\n", .{ Color.border_focus.r, Color.border_focus.g, Color.border_focus.b });
+        {
+            var line_buf: [2048]u8 = undefined;
+            var lbw = BufferWriter{ .buf = &line_buf };
+            lbw.writeAll(" ");
+            lbw.print("\x1b[1;38;2;{d};{d};{d}mRepetition\x1b[0m[", .{ Color.teal.r, Color.teal.g, Color.teal.b });
+            self.renderProgressBar(&lbw, rep_pct, bar_w, Color.teal);
+            lbw.print("] \x1b[1;38;2;{d};{d};{d}m{d: >5.1}%\x1b[0m (rep {d}/{d}, n={d})", .{
+                Color.text_bright.r,   Color.text_bright.g,   Color.text_bright.b,
+                rep_pct,               cur_rep,               tot_reps,
+                self.latest.array_size,
+            });
+            self.renderContentLine(&bw, lbw.getWritten(), inner_w);
+        }
 
         // Line 6: Divider to Telemetry & Cores
         self.renderBorderLine(&bw, "├", "─", "┤", inner_w);
@@ -307,46 +392,49 @@ pub const QsTuiContext = struct {
         else
             0.0;
 
-        bw.print("\x1b[2K\x1b[38;2;{d};{d};{d}m│\x1b[0m ", .{ Color.border_focus.r, Color.border_focus.g, Color.border_focus.b });
-        bw.print("\x1b[38;2;{d};{d};{d}mTime:\x1b[0m \x1b[1m{d: >7.2} ms\x1b[0m  ", .{ Color.text_dim.r, Color.text_dim.g, Color.text_dim.b, time_ms });
-        bw.print("\x1b[38;2;{d};{d};{d}mIPC:\x1b[0m \x1b[1;38;2;{d};{d};{d}m{d: >5.2}\x1b[0m  ", .{ Color.text_dim.r, Color.text_dim.g, Color.text_dim.b, Color.green.r, Color.green.g, Color.green.b, ipc });
-        bw.print("\x1b[38;2;{d};{d};{d}mCmp:\x1b[0m \x1b[1m{d: >9}\x1b[0m  ", .{ Color.text_dim.r, Color.text_dim.g, Color.text_dim.b, self.latest.comparisons });
-        bw.print("\x1b[38;2;{d};{d};{d}mSwp:\x1b[0m \x1b[1m{d: >9}\x1b[0m", .{ Color.text_dim.r, Color.text_dim.g, Color.text_dim.b, self.latest.swaps });
-
-        line_written = 18 + 14 + 17 + 16;
-        if (inner_w > line_written) self.writeSpaces(&bw, inner_w - line_written);
-        bw.print(" \x1b[38;2;{d};{d};{d}m│\x1b[0m\n", .{ Color.border_focus.r, Color.border_focus.g, Color.border_focus.b });
+        {
+            var line_buf: [2048]u8 = undefined;
+            var lbw = BufferWriter{ .buf = &line_buf };
+            lbw.writeAll(" ");
+            lbw.print("\x1b[38;2;{d};{d};{d}mTime:\x1b[0m \x1b[1m{d: >7.2} ms\x1b[0m  ", .{ Color.text_dim.r, Color.text_dim.g, Color.text_dim.b, time_ms });
+            lbw.print("\x1b[38;2;{d};{d};{d}mIPC:\x1b[0m \x1b[1;38;2;{d};{d};{d}m{d: >5.2}\x1b[0m  ", .{ Color.text_dim.r, Color.text_dim.g, Color.text_dim.b, Color.green.r, Color.green.g, Color.green.b, ipc });
+            lbw.print("\x1b[38;2;{d};{d};{d}mCmp:\x1b[0m \x1b[1m{d: >9}\x1b[0m  ", .{ Color.text_dim.r, Color.text_dim.g, Color.text_dim.b, self.latest.comparisons });
+            lbw.print("\x1b[38;2;{d};{d};{d}mSwp:\x1b[0m \x1b[1m{d: >9}\x1b[0m", .{ Color.text_dim.r, Color.text_dim.g, Color.text_dim.b, self.latest.swaps });
+            self.renderContentLine(&bw, lbw.getWritten(), inner_w);
+        }
 
         // Line 8: Telemetry Row 2 (Cycles, Instructions, Branch Misses, LLC Misses)
-        bw.print("\x1b[2K\x1b[38;2;{d};{d};{d}m│\x1b[0m ", .{ Color.border_focus.r, Color.border_focus.g, Color.border_focus.b });
-        bw.print("\x1b[38;2;{d};{d};{d}mCyc:\x1b[0m \x1b[1m{d: >10}\x1b[0m ", .{ Color.text_dim.r, Color.text_dim.g, Color.text_dim.b, self.latest.cycles });
-        bw.print("\x1b[38;2;{d};{d};{d}mIns:\x1b[0m \x1b[1m{d: >10}\x1b[0m ", .{ Color.text_dim.r, Color.text_dim.g, Color.text_dim.b, self.latest.instructions });
-        bw.print("\x1b[38;2;{d};{d};{d}mBrMiss:\x1b[0m \x1b[1;38;2;{d};{d};{d}m{d: >7}\x1b[0m ", .{ Color.text_dim.r, Color.text_dim.g, Color.text_dim.b, Color.yellow.r, Color.yellow.g, Color.yellow.b, self.latest.branch_misses });
-        bw.print("\x1b[38;2;{d};{d};{d}mLLCMiss:\x1b[0m \x1b[1;38;2;{d};{d};{d}m{d: >7}\x1b[0m", .{ Color.text_dim.r, Color.text_dim.g, Color.text_dim.b, Color.peach.r, Color.peach.g, Color.peach.b, self.latest.llc_misses });
-
-        line_written = 18 + 18 + 18 + 19;
-        if (inner_w > line_written) self.writeSpaces(&bw, inner_w - line_written);
-        bw.print(" \x1b[38;2;{d};{d};{d}m│\x1b[0m\n", .{ Color.border_focus.r, Color.border_focus.g, Color.border_focus.b });
+        {
+            var line_buf: [2048]u8 = undefined;
+            var lbw = BufferWriter{ .buf = &line_buf };
+            lbw.writeAll(" ");
+            lbw.print("\x1b[38;2;{d};{d};{d}mCyc:\x1b[0m \x1b[1m{d: >10}\x1b[0m ", .{ Color.text_dim.r, Color.text_dim.g, Color.text_dim.b, self.latest.cycles });
+            lbw.print("\x1b[38;2;{d};{d};{d}mIns:\x1b[0m \x1b[1m{d: >10}\x1b[0m ", .{ Color.text_dim.r, Color.text_dim.g, Color.text_dim.b, self.latest.instructions });
+            lbw.print("\x1b[38;2;{d};{d};{d}mBrMiss:\x1b[0m \x1b[1;38;2;{d};{d};{d}m{d: >7}\x1b[0m ", .{ Color.text_dim.r, Color.text_dim.g, Color.text_dim.b, Color.yellow.r, Color.yellow.g, Color.yellow.b, self.latest.branch_misses });
+            lbw.print("\x1b[38;2;{d};{d};{d}mLLCMiss:\x1b[0m \x1b[1;38;2;{d};{d};{d}m{d: >7}\x1b[0m", .{ Color.text_dim.r, Color.text_dim.g, Color.text_dim.b, Color.peach.r, Color.peach.g, Color.peach.b, self.latest.llc_misses });
+            self.renderContentLine(&bw, lbw.getWritten(), inner_w);
+        }
 
         // Line 9: Telemetry Row 3 (Worker threads & core pinning)
-        bw.print("\x1b[2K\x1b[38;2;{d};{d};{d}m│\x1b[0m ", .{ Color.border_focus.r, Color.border_focus.g, Color.border_focus.b });
-        bw.print("\x1b[38;2;{d};{d};{d}mWorkers:\x1b[0m \x1b[1;38;2;{d};{d};{d}m{d} threads\x1b[0m  ", .{
-            Color.text_dim.r, Color.text_dim.g, Color.text_dim.b,
-            Color.mauve.r,    Color.mauve.g,    Color.mauve.b,
-            if (self.latest.active_threads > 0) self.latest.active_threads else 1,
-        });
-        bw.print("\x1b[38;2;{d};{d};{d}mPin CPU:\x1b[0m \x1b[1m{d}\x1b[0m  ", .{
-            Color.text_dim.r, Color.text_dim.g, Color.text_dim.b,
-            self.latest.pinned_cpu,
-        });
-        bw.print("\x1b[38;2;{d};{d};{d}mL1d Miss:\x1b[0m \x1b[1m{d}\x1b[0m", .{
-            Color.text_dim.r, Color.text_dim.g, Color.text_dim.b,
-            self.latest.l1d_misses,
-        });
-
-        line_written = 20 + 13 + 18;
-        if (inner_w > line_written) self.writeSpaces(&bw, inner_w - line_written);
-        bw.print(" \x1b[38;2;{d};{d};{d}m│\x1b[0m\n", .{ Color.border_focus.r, Color.border_focus.g, Color.border_focus.b });
+        {
+            var line_buf: [2048]u8 = undefined;
+            var lbw = BufferWriter{ .buf = &line_buf };
+            lbw.writeAll(" ");
+            lbw.print("\x1b[38;2;{d};{d};{d}mWorkers:\x1b[0m \x1b[1;38;2;{d};{d};{d}m{d} threads\x1b[0m  ", .{
+                Color.text_dim.r, Color.text_dim.g, Color.text_dim.b,
+                Color.mauve.r,    Color.mauve.g,    Color.mauve.b,
+                if (self.latest.active_threads > 0) self.latest.active_threads else 1,
+            });
+            lbw.print("\x1b[38;2;{d};{d};{d}mPin CPU:\x1b[0m \x1b[1m{d}\x1b[0m  ", .{
+                Color.text_dim.r, Color.text_dim.g, Color.text_dim.b,
+                self.latest.pinned_cpu,
+            });
+            lbw.print("\x1b[38;2;{d};{d};{d}mL1d Miss:\x1b[0m \x1b[1m{d}\x1b[0m", .{
+                Color.text_dim.r, Color.text_dim.g, Color.text_dim.b,
+                self.latest.l1d_misses,
+            });
+            self.renderContentLine(&bw, lbw.getWritten(), inner_w);
+        }
 
         // Line 10: Divider to Event Log
         self.renderBorderLine(&bw, "├", "─", "┤", inner_w);
@@ -354,21 +442,19 @@ pub const QsTuiContext = struct {
         // Line 11 & 12: Event log messages
         var l_idx: usize = 0;
         while (l_idx < 2) : (l_idx += 1) {
-            bw.print("\x1b[2K\x1b[38;2;{d};{d};{d}m│\x1b[0m ", .{ Color.border_focus.r, Color.border_focus.g, Color.border_focus.b });
+            var line_buf: [2048]u8 = undefined;
+            var lbw = BufferWriter{ .buf = &line_buf };
+            lbw.writeAll(" ");
             if (self.log_count > l_idx) {
                 const actual_idx = if (self.log_count >= 2) self.log_count - 2 + l_idx else l_idx;
                 const msg_slice = self.logs[actual_idx][0..self.log_lens[actual_idx]];
-                bw.print("\x1b[38;2;{d};{d};{d}m›\x1b[0m \x1b[38;2;{d};{d};{d}m{s}\x1b[0m", .{
+                lbw.print("\x1b[38;2;{d};{d};{d}m›\x1b[0m \x1b[38;2;{d};{d};{d}m{s}\x1b[0m", .{
                     Color.peach.r, Color.peach.g, Color.peach.b,
                     Color.text.r,  Color.text.g,  Color.text.b,
                     msg_slice,
                 });
-                const used = 2 + msg_slice.len;
-                if (inner_w > used) self.writeSpaces(&bw, inner_w - used);
-            } else {
-                self.writeSpaces(&bw, inner_w);
             }
-            bw.print(" \x1b[38;2;{d};{d};{d}m│\x1b[0m\n", .{ Color.border_focus.r, Color.border_focus.g, Color.border_focus.b });
+            self.renderContentLine(&bw, lbw.getWritten(), inner_w);
         }
 
         // Line 13: Bottom border
@@ -385,11 +471,17 @@ pub const QsTuiContext = struct {
         _ = self;
         bw.print("\x1b[2K\x1b[38;2;{d};{d};{d}m{s}", .{ Color.border_focus.r, Color.border_focus.g, Color.border_focus.b, left });
         var i: usize = 0;
-        const total = inner_w + 2;
-        while (i < total) : (i += 1) {
+        while (i < inner_w) : (i += 1) {
             bw.writeAll(mid);
         }
         bw.print("{s}\x1b[0m\n", .{right});
+    }
+
+    fn renderContentLine(self: *QsTuiContext, bw: *BufferWriter, content: []const u8, inner_w: usize) void {
+        _ = self;
+        bw.print("\x1b[2K\x1b[38;2;{d};{d};{d}m│\x1b[0m", .{ Color.border_focus.r, Color.border_focus.g, Color.border_focus.b });
+        writePaddedOrTruncated(bw, content, inner_w);
+        bw.print("\x1b[38;2;{d};{d};{d}m│\x1b[0m\n", .{ Color.border_focus.r, Color.border_focus.g, Color.border_focus.b });
     }
 
     fn renderProgressBar(self: *QsTuiContext, bw: *BufferWriter, pct: f64, bar_len: usize, color: Color) void {
