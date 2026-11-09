@@ -9,6 +9,7 @@ const c_lib_sources: []const []const u8 = &.{
     "src/quicksort_kernel.c",
     "src/metrics.c",
     "src/jit.c",
+    "src/parser.c",
 };
 
 const c_flags: []const []const u8 = &.{
@@ -30,7 +31,22 @@ pub fn build(b: *std.Build) void {
         .link_libc = true,
     });
 
+    // Flex/Bison generation mirrors the root Makefile (src/parser.{l,y}).
+    const bison = b.addSystemCommand(&.{ "bison", "-d" });
+    const parser_tab_h = bison.addPrefixedOutputFileArg("--defines=", "parser.tab.h");
+    bison.addArg("-o");
+    const parser_tab_c = bison.addOutputFileArg("parser.tab.c");
+    bison.addFileArg(b.path("../src/parser.y"));
+
+    const flex = b.addSystemCommand(&.{"flex"});
+    const parser_lex_h = flex.addPrefixedOutputFileArg("--header-file=", "parser.lex.h");
+    flex.addArg("-o");
+    const parser_lex_c = flex.addOutputFileArg("parser.lex.c");
+    flex.addFileArg(b.path("../src/parser.l"));
+
     test_mod.addIncludePath(.{ .cwd_relative = "include" });
+    test_mod.addIncludePath(parser_tab_h.dirname());
+    test_mod.addIncludePath(parser_lex_h.dirname());
     test_mod.linkSystemLibrary("dl", .{});
     test_mod.linkSystemLibrary("m", .{});
     test_mod.addCSourceFiles(.{
@@ -38,6 +54,8 @@ pub fn build(b: *std.Build) void {
         .files = c_lib_sources,
         .flags = c_flags,
     });
+    test_mod.addCSourceFile(.{ .file = parser_tab_c, .flags = c_flags });
+    test_mod.addCSourceFile(.{ .file = parser_lex_c, .flags = c_flags });
 
     const tests = b.addTest(.{
         .root_module = test_mod,

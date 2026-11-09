@@ -54,7 +54,7 @@ void qs_ident_normalize(char *s);
 DIGIT		[0-9]
 INT_LIT		-?{DIGIT}+
 FLOAT_LIT	-?{DIGIT}+\.{DIGIT}+([eE][-+]?{DIGIT}+)?
-ID		[A-Za-z_][A-Za-z0-9_]*
+ID		[A-Za-z_][A-Za-z0-9_-]*
 
 %%
 

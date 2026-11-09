@@ -387,7 +387,7 @@ parse_pivot(const char *s, bool *ok)
 		return QS_PIVOT_MIDDLE;
 	if (strcmp(s, "random") == 0)
 		return QS_PIVOT_RANDOM;
-	if (strcmp(s, "median3") == 0)
+	if (strcmp(s, "median3") == 0 || strcmp(s, "median_of_three") == 0)
 		return QS_PIVOT_MEDIAN3;
 	if (strcmp(s, "ninther") == 0)
 		return QS_PIVOT_NINTHER;
