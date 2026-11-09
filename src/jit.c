@@ -10,6 +10,10 @@
 #include <string.h>
 #include <sys/stat.h>
 #include <sys/wait.h>
+
+#ifndef QS_SOURCE_ROOT
+#define QS_SOURCE_ROOT "."
+#endif
 #include <unistd.h>
 
 struct QsJitCache {
@@ -223,11 +227,11 @@ static bool compile_kernel_so(const QsJitOptions *opts, const char *so_path)
 	char pragma_defs[256];
 	build_pragma_defines(opts, pragma_defs, sizeof(pragma_defs));
 
-	char cmd[1024];
+	char cmd[2048];
 	int n = snprintf(cmd, sizeof(cmd),
-			 "%s -std=c23 -D_GNU_SOURCE -shared -fPIC -Iinclude %s%s "
-			 "src/quicksort_kernel.c -o '%s'",
-			 cc, cflags, pragma_defs, so_path);
+			 "%s -std=c23 -D_GNU_SOURCE -shared -fPIC -I%s/include %s%s "
+			 "%s/src/quicksort_kernel.c -o '%s' 2>'%s.log'",
+			 cc, QS_SOURCE_ROOT, cflags, pragma_defs, QS_SOURCE_ROOT, so_path, so_path);
 	if (n < 0 || (size_t)n >= sizeof(cmd)) {
 		return false;
 	}
@@ -244,11 +248,12 @@ static bool compile_kernel_asm(const QsJitOptions *opts, const char *asm_path)
 	char pragma_defs[256];
 	build_pragma_defines(opts, pragma_defs, sizeof(pragma_defs));
 
-	char cmd[1024];
+	char cmd[2048];
 	int n = snprintf(cmd, sizeof(cmd),
-			 "%s -std=c23 -D_GNU_SOURCE -S -fverbose-asm -Iinclude %s%s "
-			 "src/quicksort_kernel.c -o '%s'",
-			 cc, cflags, pragma_defs, asm_path);
+			 "%s -std=c23 -D_GNU_SOURCE -S -fverbose-asm -I%s/include %s%s "
+			 "%s/src/quicksort_kernel.c -o '%s' 2>'%s.log'",
+			 cc, QS_SOURCE_ROOT, cflags, pragma_defs, QS_SOURCE_ROOT, asm_path,
+			 asm_path);
 	if (n < 0 || (size_t)n >= sizeof(cmd)) {
 		return false;
 	}

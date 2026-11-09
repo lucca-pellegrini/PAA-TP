@@ -3,7 +3,7 @@ LEX := flex
 YACC := bison
 
 override CFLAGS += -std=c23 -Wall -Wextra -Wpedantic -O3 -D_GNU_SOURCE -fPIC
-override CPPFLAGS += -Iinclude -Ibuild/gen
+override CPPFLAGS += -Iinclude -Ibuild/gen -DQS_SOURCE_ROOT=\"$(CURDIR)\"
 override LDFLAGS += -flto=full -lm -ldl -lpthread -rdynamic
 
 ifneq ($(shell command -v ccache 2>/dev/null),)
