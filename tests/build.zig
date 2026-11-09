@@ -66,6 +66,13 @@ pub fn build(b: *std.Build) void {
     });
     tests.rdynamic = true;
 
+    // Installed test binary consumed by `make cov` (kcov).
+    const install_tests = b.addInstallArtifact(tests, .{
+        .dest_sub_path = "test_runner",
+    });
+    const test_exe_step = b.step("test-exe", "Build the test binary for kcov");
+    test_exe_step.dependOn(&install_tests.step);
+
     const run_tests = b.addRunArtifact(tests);
     run_tests.setEnvironmentVariable("__QS_UI_SHUT_UP", "1");
     run_tests.stdio = .inherit;
