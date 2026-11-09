@@ -128,6 +128,8 @@ pub const QsTuiContext = struct {
     has_rendered: bool = false,
 
     latest: QsUiTelemetry = .{},
+    // Owned copies of the names: the C side frees its plan before the final render.
+    name_bufs: [3][64]u8 = undefined,
 
     logs: [MAX_LOGS][LOG_LEN]u8 = undefined,
     log_lens: [MAX_LOGS]usize = std.mem.zeroes([MAX_LOGS]usize),
@@ -153,7 +155,6 @@ pub const QsTuiContext = struct {
         const paths = [_][]const u8{
             "tui/node_modules/@opentui/core-linux-x64/libopentui.so",
             "node_modules/@opentui/core-linux-x64/libopentui.so",
-            "/home/luc/src/VerticordiaAtlas/node_modules/@opentui/core-linux-x64/libopentui.so",
         };
         for (paths) |p| {
             if (std.DynLib.open(p)) |lib| {
@@ -431,10 +432,23 @@ export fn qs_tui_init(total_steps: usize) callconv(.c) ?*anyopaque {
     return @ptrCast(&global_ctx.?);
 }
 
+fn copyName(dst: *[64]u8, src: ?[*:0]const u8) ?[*:0]const u8 {
+    const s = std.mem.span(src orelse return null);
+    const n = @min(s.len, dst.len - 1);
+    @memcpy(dst[0..n], s[0..n]);
+    dst[n] = 0;
+    const z: [:0]const u8 = dst[0..n :0];
+    return z.ptr;
+}
+
 export fn qs_tui_update(ctx: ?*anyopaque, tel: ?*const QsUiTelemetry) callconv(.c) void {
     const c: *QsTuiContext = if (ctx) |p| @ptrCast(@alignCast(p)) else if (global_ctx != null) &global_ctx.? else return;
     if (tel) |t| {
-        c.latest = t.*;
+        var copy = t.*;
+        copy.benchmark_name = copyName(&c.name_bufs[0], t.benchmark_name);
+        copy.dataset_name = copyName(&c.name_bufs[1], t.dataset_name);
+        copy.variant_name = copyName(&c.name_bufs[2], t.variant_name);
+        c.latest = copy;
         if (t.total_steps > 0) c.total_steps = t.total_steps;
         if (t.current_step > 0) c.current_step = t.current_step;
         c.render(c.current_step >= c.total_steps);
