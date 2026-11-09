@@ -61,14 +61,28 @@ tui: | $(BUILD_DIR)
 test: $(GEN_H) $(GEN_C)
 	zig build --build-file tests/build.zig test --summary all
 
+COV_DIR := $(BUILD_DIR)/coverage
+COV_SIM_DIR := $(BUILD_DIR)/cov-sim
+KCOV_FLAGS := --include-path=$(CURDIR)/src,$(CURDIR)/include \
+	--exclude-pattern=.zig,parser.y,parser.l,.tab.,.lex.
+COV_SIMS := $(sort $(wildcard simulations/*.qs))
+COV_SIM_OUT := $(patsubst simulations/%.qs,$(COV_DIR)/sim-%,$(COV_SIMS))
+
+# Simulations run from a sandbox cwd so their output_csv files never overwrite report/data.
 cov coverage: $(GEN_H) $(GEN_C)
 	zig build --build-file tests/build.zig test-exe
-	rm -rf $(BUILD_DIR)/coverage
-	mkdir -p $(BUILD_DIR)/coverage
-	__QS_PARSER_SHUT_UP=1 __QS_UI_SHUT_UP=1 kcov \
-		--include-path=$(CURDIR)/src,$(CURDIR)/include \
-		--exclude-pattern=.zig,parser.y,parser.l,.tab.,.lex. \
-		$(BUILD_DIR)/coverage ./tests/zig-out/bin/test_runner
+	rm -rf $(COV_DIR)
+	mkdir -p $(COV_DIR)/sandbox
+	__QS_PARSER_SHUT_UP=1 __QS_UI_SHUT_UP=1 kcov $(KCOV_FLAGS) \
+		$(COV_DIR)/tests ./tests/zig-out/bin/test_runner
+	$(MAKE) BUILD_DIR=$(COV_SIM_DIR) TARGET=$(COV_SIM_DIR)/quicksort CFLAGS=-g
+	@for sim in $(COV_SIMS); do \
+		n=$$(basename $$sim .qs); \
+		(cd $(COV_DIR)/sandbox && __QS_PARSER_SHUT_UP=1 __QS_UI_SHUT_UP=1 kcov $(KCOV_FLAGS) \
+			$(CURDIR)/$(COV_DIR)/sim-$$n $(CURDIR)/$(COV_SIM_DIR)/quicksort --no-tui $(CURDIR)/$$sim >/dev/null) || exit 1; \
+	done
+	kcov --merge $(COV_DIR)/simulator $(COV_SIM_OUT)
+	kcov --merge $(COV_DIR)/merged $(COV_DIR)/tests $(COV_DIR)/simulator
 
 compiledb: $(GEN_H) $(GEN_C) | $(BUILD_DIR)
 	@rm -f $(BUILD_DIR)/*.json
