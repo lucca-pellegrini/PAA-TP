@@ -213,7 +213,8 @@
 \addlegendentry{Repetido -- Híbrido ($M=50$)}
 
 \node[font=\tiny\bfseries, text=red!80!black, anchor=south east] at (axis cs:90000,105) {$\dagger$ Limite recursão ($d \ge 4096$)};
-\draw[->, >=stealth, red!80!black, semithick] (axis cs:60000,100) -- (axis cs:35000,50);
+\draw[dashed, red!80!black, semithick] ({axis cs:15000,0} |- {rel axis cs:0,0}) -- ({axis cs:15000,0} |- {rel axis cs:0,1})
+    node[pos=0.08, anchor=west, font=\scriptsize\bfseries, text=red!80!black] {$n=15\,000$};
 \end{axis}
 \end{tikzpicture}
 \end{minipage}\\[1.2ex]

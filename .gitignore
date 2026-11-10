@@ -30,6 +30,10 @@ report/*.synctex.gz
 report/*.toc
 report/main.pdf
 report/.venv
+report/_minted/
+report/_minted*/
+report/*.minted
+*.egg-info/
 
 # Reference directories & local notes (keep untracked)
 PLAN.md

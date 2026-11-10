@@ -20,6 +20,7 @@
 \pgfplotsset{compat=1.18}
 \usepackage{microtype}
 \usepackage{embedfile}
+\usepackage{minted}
 \usepackage[hidelinks]{hyperref}
 \usepackage[brazilian,capitalize,nameinlink]{cleveref}
 
@@ -196,7 +197,7 @@ A avaliação do thread pool nativo em C23 com afinidade estática de núcleos e
 
 A telemetria via contadores de hardware revela a interdependência direta entre entropia de dados, previsibilidade de saltos e instruções executadas por ciclo. Sob cargas aleatórias, as comparações de partição tomam caminhos com probabilidade próxima a $\ValExtRandPathProbPct\%$, o que gera taxas de erro de predição de desvios na faixa de $\ValExtRandBranchMissMinPct\%$ a $\ValExtRandBranchMissMaxPct\%$. Como cada erro impõe o descarte de pipeline de \ValZenDiscardCyclesMin\ a \ValZenDiscardCyclesMax\ ciclos no núcleo Zen~\ValZenArchGeneration, o IPC permanece limitado entre $\ValExtRandIpcMin$ e $\ValExtRandIpcMax$, com patamar típico entre $\ValExtRandIpcTypMin$ e $\ValExtRandIpcTypMax$. Em contrapartida, sob arranjos com regularidade espacial como tubo de órgão, chaves repetidas e sequências pré-ordenadas, os preditores de salto convergem com rapidez e reduzem a taxa de falhas para menos de $\ValPmuRegularBranchMissCutoff\%$, com marcas de $\ValPmuKillerBranchMissPct\%$ no adversário de McIlroy, $\ValPmuSortedBranchMissPct\%$ no vetor ordenado e $\ValPmuOrganBranchMissPct\%$ em tubo de órgão. Sem a penalidade de descarte de pipeline, a microarquitetura atinge índices de IPC entre $\ValPmuRegularIpcMin$ e $\ValPmuRegularIpcMax$, patamar próximo ao limite teórico de \ValPmuZenMaxDecoded\ instruções decodificadas por ciclo.
 
-A investigação de compilação dinâmica sob demanda em dados aleatórios com cem mil elementos elucida contraexemplos importantes relativos ao desenrolamento de laços. A linha de base compilada com otimização máxima nativa requer $\ValJitRandOThreeMs\text{ ms}$, com consumo de $\ValJitRandOThreeInst$ instruções e $\ValJitRandOThreeCycles$ ciclos com IPC de $\ValJitRandOThreeIpc$ e $\ValJitRandOThreeBranchMissPct\%$ de falhas de desvio. A imposição de desenrolamento forçado com fator de \ValUnrollFactor\ iterações via diretiva pragmática eleva o tempo para $\ValJitRandUnrollFourMs\text{ ms}$, o que representa acréscimo temporal de $\ValJitRandUnrollFourMsIncPctRound\%$ acompanhado pelo aumento de $\ValJitRandUnrollFourInstIncPctRound\%$ nas instruções totais, que sobem para $\ValJitRandUnrollFourInst$. Conquanto o desenrolamento reduza discretamente a taxa de erro de desvios para $\ValJitRandUnrollFourBranchMissPct\%$, ele inflaciona a pegada de código e sobrecarrega a decodificação da CPU com o tratamento de caudas de resíduo sem acelerar o avanço de ponteiros condicionado por dados. Ademais, a desativação de vetorização atinge $\ValJitRandNoVecMs\text{ ms}$, com alteração inferior a $\ValJitRandNoVecDiffThresholdPct\%$, resultado que confirma que laços de partição com saltos bidirecionais dependentes de dados não admitem vetorização SIMD automática; paralelamente, a transição entre os níveis de otimização escalar exibe variação de apenas $\ValJitRandOptVarPct\%$, com marcas de $\ValJitRandOOneMs\text{ ms}$ em nível básico e $\ValJitRandOTwoMs\text{ ms}$ em nível intermediário. As listagens de código de máquina dos laços de partição escalar e desenrolado constam no \cref{sec:apendice-asm}.
+A investigação de compilação dinâmica sob demanda em dados aleatórios com cem mil elementos elucida contraexemplos importantes relativos ao desenrolamento de laços. A linha de base compilada com otimização máxima nativa requer $\ValJitRandOThreeMs\text{ ms}$, com consumo de $\ValJitRandOThreeInst$ instruções e $\ValJitRandOThreeCycles$ ciclos com IPC de $\ValJitRandOThreeIpc$ e $\ValJitRandOThreeBranchMissPct\%$ de falhas de desvio. A imposição de desenrolamento forçado com fator de \ValUnrollFactor\ iterações via diretiva pragmática eleva o tempo para $\ValJitRandUnrollFourMs\text{ ms}$, o que representa acréscimo temporal de $\ValJitRandUnrollFourMsIncPctRound\%$ acompanhado pelo aumento de $\ValJitRandUnrollFourInstIncPctRound\%$ nas instruções totais, que sobem para $\ValJitRandUnrollFourInst$. Conquanto o desenrolamento reduza discretamente a taxa de erro de desvios para $\ValJitRandUnrollFourBranchMissPct\%$, ele inflaciona a pegada de código e sobrecarrega a decodificação da CPU com o tratamento de caudas de resíduo sem acelerar o avanço de ponteiros condicionado por dados. Ademais, a desativação de vetorização atinge $\ValJitRandNoVecMs\text{ ms}$, com alteração inferior a $\ValJitRandNoVecDiffThresholdPct\%$, resultado que confirma que laços de partição com saltos bidirecionais dependentes de dados não admitem vetorização SIMD automática; paralelamente, a transição entre os níveis de otimização escalar exibe variação de apenas $\ValJitRandOptVarPct\%$, com marcas de $\ValJitRandOOneMs\text{ ms}$ em nível básico e $\ValJitRandOTwoMs\text{ ms}$ em nível intermediário. As listagens de código de máquina e a análise microarquitetural das classes de instruções constam no \cref{sec:apendice-asm}.
 
 \subsection{Discussão Integrada e Limitações}\label{sec:res-discussao}
 
@@ -270,14 +271,17 @@ A \cref{tab:jit-assembly-full} apresenta os resultados completos obtidos na camp
 
 \section{Apêndice: Listagens de Código de Máquina}\label{sec:apendice-asm}
 
-Esta seção apresenta excertos do código de máquina gerado para o laço interno de partição. O \cref{fig:asm-scalar} exibe o laço escalar sob compilação nativa com otimização completa, e o \cref{fig:asm-unroll} reproduz o laço correspondente sob diretiva de desenrolamento forçado com fator quatro. As instruções foram copiadas diretamente como linhas textuais literais das listagens assembly emitidas sob demanda.
+Este apêndice analisa os excertos de código de máquina emitidos pelo compilador para os laços críticos do algoritmo Quicksort e avalia as transformações microarquiteturais causadas por níveis de otimização e diretivas pragmáticas de laço.
+
+\subsection{Laços de Partição e Seleção Condicional}\label{sec:apendice-asm-particao}
+
+A rotina de comparação do núcleo do algoritmo resolve a direção da ordenação por meio de uma expressão condicional que escolhe entre a relação de menor ou maior conforme a ordem solicitada. Para evitar desvios no fluxo de execução, o compilador traduz essa lógica com uma sequência estritamente linear de instruções, apresentada na \cref{fig:asm-scalar}.
+
+Nesse trecho, a instrução de ou-exclusivo lógico zera o registrador ao operar sobre si mesma, com latência nula de processador. Esse zeramento prévio é necessário porque as instruções subsequentes de ajuste condicional gravam apenas no byte menos significativo de cada registrador, sem alterar os bits superiores. Com o zeramento inicial, o valor lógico converte-se em um número inteiro limpo de trinta e dois bits. Em seguida, a instrução de comparação aritmética subtrai os operandos e atualiza as bandeiras de estado da unidade central de processamento. As instruções de ajuste condicional marcam um se a comparação for estritamente menor ou estritamente maior. O teste lógico avalia o parâmetro de ordem ascendente, e a instrução de movimentação condicional seleciona o resultado correto sem incorrer em penalidades de erro de predição de desvio. Por fim, o teste lógico de byte e o salto condicional determinam se a varredura prossegue.
 
 \begin{figure}[htbp]
 \centering
-\begin{minipage}{0.485\columnwidth}
-\centering
-\scriptsize
-\begin{verbatim}
+\begin{minted}[fontsize=\small, linenos=false, breaklines=true]{gas}
 .LBB2_322:
   xorl    %r10d, %r10d
   xorl    %r11d, %r11d
@@ -288,15 +292,18 @@ Esta seção apresenta excertos do código de máquina gerado para o laço inter
   cmovel  %r10d, %r11d
   testb   %r11b, %r11b
   jne     .LBB2_324
-\end{verbatim}
-\vspace{-1.5ex}
-\caption{Laço de partição escalar sob compilação nativa (linhas copiadas como instruções textuais literais).}
+\end{minted}
+\caption{Laço de partição sob compilação nativa com otimização máxima.}
 \label{fig:asm-scalar}
-\end{minipage}\hfill
-\begin{minipage}{0.485\columnwidth}
+\end{figure}
+
+O uso de movimentações condicionais elimina o custo de descarte de estágios do processador na alternância de ordem. A variante sob otimização máxima nativa acumula 1\,368 instruções de movimentação condicional, contra 896 instruções no nível intermediário de otimização.
+
+Em contrapartida, a imposição de desenrolamento forçado com fator quatro replica o corpo do laço de partição de maneira sequencial, como ilustra o \cref{fig:asm-unroll}. Cada réplica executa o teste condicional e, se os elementos violam a ordem, realiza a troca direta na memória por meio de instruções de movimentação escalar de quatro bytes.
+
+\begin{figure}[htbp]
 \centering
-\scriptsize
-\begin{verbatim}
+\begin{minted}[fontsize=\small, linenos=false, breaklines=true]{gas}
   xorl    %edi, %edi
   xorl    %r9d, %r9d
   cmpl    %ecx, %edx
@@ -308,11 +315,265 @@ Esta seção apresenta excertos do código de máquina gerado para o laço inter
   jne     .LBB1_79
   movl    %edx, (%rsi,%rbp,4)
   movl    %ecx, (%rsi,%rax,4)
-\end{verbatim}
-\vspace{-1.5ex}
-\caption{Laço de partição sob diretiva de desenrolamento com fator quatro (linhas copiadas como instruções textuais literais).}
+\end{minted}
+\caption{Laço sob desenrolamento forçado com fator quatro.}
 \label{fig:asm-unroll}
+\end{figure}
+
+Essa replicação quádrupla expande o total de instruções de 24\,187 na variante com desenrolamento desativado para 44\,917 na versão desenrolada, um acréscimo de 85,7\%. O número de desvios sobe de 3\,311 para 6\,749, o que representa aumento de 103,8\%. Nessa medição, o acréscimo de instruções e de desvios não se converte em redução de tempo: a versão desenrolada não supera a versão sem desenrolamento, pois o número de iterações depende dos valores do vetor.
+
+\subsection{Vetorização no Subvetor Base e Expansão de Código}\label{sec:apendice-asm-vetorizacao}
+
+O laço de partição do Quicksort não admite vetorização automática porque o avanço dos ponteiros depende do conteúdo dos dados em cada passo. Se a diretiva explícita de vetorização for aplicada ao laço de partição, o compilador emite 480 avisos de transformação impossível e produz um código idêntico ao escalar nativo, com 37\,058 instruções.
+
+Entretanto, o deslocamento de elementos na ordenação por inserção do caso base ocorre sobre faixas contíguas. O trecho da \cref{fig:asm-simd} pertence à rotina de execução com cauda, em que o compilador vetoriza a cópia desses blocos com instruções de duzentos e cinquenta e seis bits.
+
+\begin{figure}[htbp]
+\centering
+\begin{minted}[fontsize=\small, linenos=false, breaklines=true]{gas}
+.LBB4_579:
+  vmovups -100(%rsi,%r12,4), %ymm0
+  vmovups -68(%rsi,%r12,4), %ymm1
+  vmovups -36(%rsi,%r12,4), %ymm2
+  vmovups -4(%rsi,%r12,4), %ymm3
+  vmovups %ymm3, (%rsi,%r12,4)
+  vmovups %ymm2, -32(%rsi,%r12,4)
+  vmovups %ymm1, -64(%rsi,%r12,4)
+  vmovups %ymm0, -96(%rsi,%r12,4)
+  addq    $-32, %r12
+  cmpq    %r12, %r15
+  jne     .LBB4_579
+\end{minted}
+\caption{Translação vetorial com instruções de duzentos e cinquenta e seis bits no subvetor base sob compilação nativa.}
+\label{fig:asm-simd}
+\end{figure}
+
+A instrução vetorial desalinhada copia trinta e dois bytes de dados entre a memória e registradores vetoriais sem exigir alinhamento estrito de endereços. Com quatro registradores desse grupo em operação conjunta, o laço desloca trinta e dois inteiros, o que equivale a 128 bytes por iteração. A instrução de adição ajusta o registrador de índice, a comparação de oito bytes verifica o limite da faixa e o salto condicional repete o bloco vetorial. A variante com compilação nativa acumula 173 instruções vetoriais desse grupo.
+
+Ao desativar a vetorização por sinalizadores de compilação, o compilador recorre ao laço escalar tradicional com instruções de movimentação simples de quatro bytes e decremento unitário de ponteiros, apresentado no \cref{fig:asm-novec}.
+
+\begin{figure}[htbp]
+\centering
+\begin{minted}[fontsize=\small, linenos=false, breaklines=true]{gas}
+.LBB1_130:
+  movl    -4(%rsi,%r8,4), %r13d
+  decq    %r8
+  xorl    %r14d, %r14d
+  xorl    %r15d, %r15d
+  cmpl    %edx, %r13d
+  setl    %r14b
+  setg    %r15b
+  testl   %r11d, %r11d
+  cmovel  %r14d, %r15d
+  testb   %r15b, %r15b
+  je      .LBB1_130
+\end{minted}
+\caption{Varredura e comparação escalar com vetorização desativada.}
+\label{fig:asm-novec}
+\end{figure}
+
+Nesse laço escalar, a instrução de movimentação carrega um único elemento da memória, a instrução de decremento recua o índice em uma posição e o par de ou-exclusivos limpa os registradores antes das instruções de ajuste de byte. O teste lógico e a movimentação condicional realizam a seleção de ordem, e o salto condicional por igualdade repete a varredura enquanto a condição de parada não for atingida. Sob vetorização desativada, o número de instruções vetoriais de duzentos e cinquenta e seis bits cai de 173 para 12 instruções residuais no módulo completo, e a diferença de tempo medida entre as duas versões em $n = 10^5$ elementos aleatórios é inferior a 2\,\%, da ordem da dispersão entre repetições.
+
+\section{Apêndice: Linguagem de Configuração e Planos de Simulação}\label{sec:apendice-dsl}
+
+Este apêndice documenta a sintaxe e a organização da linguagem de domínio específico projetada para a especificação dos experimentos. A ferramenta adota uma gramática declarativa que desacopla a infraestrutura de medição do hospedeiro, os geradores de dados vetoriais, a parametrização das variantes algorítmicas e os planos de execução comparativa.
+
+\subsection{Estrutura Gramatical e Blocos Declarativos}\label{sec:apendice-dsl-estrutura}
+
+O analisador léxico e sintático da ferramenta opera de forma reentrante sobre arquivos com terminação própria da linguagem. A especificação divide-se em quatro tipos fundamentais de blocos, além de declarações de vinculação prévia com a palavra-chave de atribuição. O bloco de hospedeiro centraliza o isolamento arquitetural da máquina local: ele define a fixação das tarefas aos núcleos físicos da unidade de processamento, o controle estrito de esvaziamento das memórias de trânsito entre repetições e a contagem de repetições e aquecimentos prévios.
+
+O bloco de conjunto de dados estabelece as dimensões amostrais e a regra matemática de síntese vetorial. Cada variante algorítmica declara o método de particionamento, a heurística de seleção de pivô, o limiar de transição e o algoritmo de base para subvetores pequenos, além do modelo de execução sequencial, recursivo com cauda, iterativo em pilha própria ou paralelo em múltiplos núcleos. Esse bloco também recebe sinalizadores de compilação dinâmica e anotações pragmáticas de laço para a emissão de código sob demanda. Por fim, o bloco de ensaio comparativo cruza conjuntos de dados e variantes, habilita a máscara de contadores de desempenho de hardware e grava os resultados em arquivos de dados e listagens de máquina.
+
+\subsection{Álgebra Vetorial e Composição de Cargas}\label{sec:apendice-dsl-algebra}
+
+A linguagem suporta uma álgebra de vetores com operadores de concatenação, intercalação alternada, fusão estocástica e inversão pontual, além de fatiamento por limites de índice. A canalização de dados admite ordenação parcial contínua, com a qual um fator em ponto flutuante determina a fração de elementos pré-ordenados em relação ao embaralhamento uniforme. A \cref{fig:dsl-algebra} ilustra o emprego desses operadores na construção de cargas sintéticas compostas.
+
+\begin{figure}[htbp]
+\centering
+\begin{minted}[fontsize=\scriptsize, linenos=false, breaklines=true]{qs}
+let head_asc = sorted(500, order=asc, step=1);
+let tail_desc = ~sorted(500, order=asc, step=2);
+let noisy_mid = random(500, min=-100, max=100, seed=77);
+
+dataset concat_ds {
+	sizes = [1000];
+	expr = head_asc ++ tail_desc;
+}
+
+dataset interleave_ds {
+	sizes = [1000];
+	expr = head_asc ** noisy_mid;
+}
+
+dataset blend_ds {
+	sizes = [500];
+	expr = head_asc ^ noisy_mid;
+}
+
+dataset slice_ds {
+	sizes = [1000];
+	expr = (head_asc ++ noisy_mid ++ tail_desc)[250..1250];
+}
+\end{minted}
+\caption{Exemplo de expressões algébricas para composição de cargas vetoriais.}
+\label{fig:dsl-algebra}
+\end{figure}
+
+\subsection{Planos Canônicos de Calibração e Execução Oficial}\label{sec:apendice-dsl-planos}
+
+O arquivo canônico de calibração empírica do limiar de particionamento, apresentado na \cref{fig:dsl-calibration}, varre doze configurações distintas do subvetor base sob trinta repetições e esvaziamento das memórias de trânsito em três perfis de carga sintética. A listagem reflete a separação rigorosa entre o conjunto de ajuste e o ensaio principal da pesquisa.
+
+\begin{figure}[htbp]
+\centering
+\begin{minted}[fontsize=\scriptsize, linenos=false, breaklines=true]{qs}
+host {
+	pin_cpus = [0];
+	cold_cache = true;
+	repetitions = 30;
+	warmup = 2;
+}
+
+dataset cal_random {
+	sizes = [10000, 50000];
+	expr = random(n, min=0, max=1000000, seed=202601);
+}
+
+dataset cal_partial {
+	sizes = [10000, 50000];
+	expr = random(n, min=0, max=1000000, seed=202602)
+	       |> partial_sort(factor=0.5, order=asc, seed=202602);
+}
+
+dataset cal_repeated {
+	sizes = [10000, 50000];
+	expr = repeated(n, unique=100, seed=202603);
+}
+
+variant m_00 { partition = hoare; pivot = last; cutoff = 0;  small_sort = none;      execution = recursive; }
+variant m_04 { partition = hoare; pivot = last; cutoff = 4;  small_sort = insertion; execution = recursive; }
+variant m_16 { partition = hoare; pivot = last; cutoff = 16; small_sort = insertion; execution = recursive; }
+variant m_30 { partition = hoare; pivot = last; cutoff = 30; small_sort = insertion; execution = recursive; }
+variant m_50 { partition = hoare; pivot = last; cutoff = 50; small_sort = insertion; execution = recursive; }
+variant m_64 { partition = hoare; pivot = last; cutoff = 64; small_sort = insertion; execution = recursive; }
+
+benchmark calibration_m {
+	datasets = [cal_random, cal_partial, cal_repeated];
+	variants = [m_00, m_04, m_16, m_30, m_50, m_64];
+	metrics = [monotonic_ns, comparisons, swaps, moves, cycles, instructions, branch_misses, l1d_misses];
+	output_csv = "report/data/calibration_m.csv";
+}
+\end{minted}
+\caption{Plano de calibração empírica do parâmetro ótimo de corte.}
+\label{fig:dsl-calibration}
+\end{figure}
+
+Por sua vez, o plano comparativo oficial, exibido na \cref{fig:dsl-official}, consolida as quatro variantes fundamentais da avaliação sobre as seis classes de carga prescritas. O arquivo define o teto explícito de profundidade de recursão para o controle do pior caso e formaliza o registro da telemetria de ciclos, instruções e falhas de memória nas saídas estruturadas.
+
+\begin{figure}[htbp]
+\centering
+\begin{minipage}[t]{0.48\textwidth}
+\begin{minted}[fontsize=\scriptsize, linenos=false, breaklines=true]{qs}
+host {
+	pin_cpus = [0];
+	cold_cache = true;
+	repetitions = 5;
+	warmup = 1;
+}
+
+dataset random {
+	sizes = [1000, 2500, 7000, 20000, 50000,
+	         140000, 370000, 1000000,
+	         10000000, 100000000];
+	expr = random(n, min=0, max=1000000,
+	              seed=42001);
+}
+
+dataset sorted {
+	sizes = [1000, 2000, 4000, 8000,
+	         15000, 30000, 60000, 100000];
+	expr = sorted(n, order=asc, step=1);
+}
+
+dataset reverse {
+	sizes = [1000, 2000, 4000, 8000,
+	         15000, 30000, 60000, 100000];
+	expr = reverse(n, step=1);
+}
+
+dataset repeated {
+	sizes = [1000, 2500, 7000, 20000, 50000,
+	         140000, 370000, 1000000,
+	         10000000, 100000000];
+	expr = repeated(n, unique=10, seed=42004);
+}
+
+dataset worst_case {
+	sizes = [1000, 2000, 4000, 8000,
+	         15000, 30000, 60000, 100000];
+	expr = sorted(n, order=asc, step=1);
+}
+
+dataset worst_case_med3 {
+	sizes = [1000, 2000, 4000, 8000,
+	         15000, 30000, 60000, 100000];
+	expr = adversarial_med3(n);
+}
+\end{minted}
+\end{minipage}\hfill
+\begin{minipage}[t]{0.48\textwidth}
+\begin{minted}[fontsize=\scriptsize, linenos=false, breaklines=true]{qs}
+variant trad {
+	partition = hoare;
+	pivot = middle;
+	cutoff = 0;
+	small_sort = none;
+	execution = recursive;
+	max_depth = 4096;
+}
+
+variant trad_fixed {
+	partition = hoare;
+	pivot = first;
+	cutoff = 0;
+	small_sort = none;
+	execution = recursive;
+	max_depth = 4096;
+}
+
+variant hybrid {
+	partition = hoare;
+	pivot = middle;
+	cutoff = 50;
+	small_sort = insertion;
+	execution = recursive;
+	max_depth = 4096;
+}
+
+variant hybrid_med3 {
+	partition = hoare;
+	pivot = median3;
+	cutoff = 50;
+	small_sort = insertion;
+	execution = recursive;
+	max_depth = 4096;
+}
+
+benchmark tp_official {
+	datasets = [random, sorted, reverse,
+	            repeated, worst_case,
+	            worst_case_med3];
+	variants = [trad, trad_fixed,
+	            hybrid, hybrid_med3];
+	metrics = [monotonic_ns, comparisons,
+	           swaps, moves, cycles,
+	           instructions, branches,
+	           branch_misses, l1d_misses];
+	output_csv = "report/data/tp_official.csv";
+}
+\end{minted}
 \end{minipage}
+\caption{Plano de ensaio comparativo das variantes principais e cargas canônicas.}
+\label{fig:dsl-official}
 \end{figure}
 
 \end{document}
