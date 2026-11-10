@@ -125,23 +125,23 @@ REPORT_CSVS = report/data/host_info.csv \
 
 report/data/%.csv $(STAMP_DIR)/%.stamp: simulations/%.qs $(TARGET) | $(STAMP_DIR) report/data
 	@rm -f report/data/$*.csv $(STAMP_DIR)/$*.stamp
-	./$(TARGET) --headless $<
+	./$(TARGET) $<
 	@touch $(STAMP_DIR)/$*.stamp
 
 report/data/host_info.csv report/data/host_info.tex: $(TARGET) | report/data
 	./$(TARGET) --sysinfo-tex report/data/host_info.tex --sysinfo-csv report/data/host_info.csv
 
 report/data/kernel_scalar.s: ./src/quicksort_kernel.c include/quicksort.h | report/data
-	clang -std=c23 -D_GNU_SOURCE -S -fverbose-asm -I./include -O3 -march=native $< -o $@
+	clang -std=c23 -D_GNU_SOURCE -S -masm=intel -fverbose-asm -I./include -O3 -march=native $< -o $@
 
 report/data/kernel_unroll4.s: ./src/quicksort_kernel.c include/quicksort.h | report/data
-	clang -std=c23 -D_GNU_SOURCE -S -fverbose-asm -I./include -O3 -march=native -funroll-loops -DQS_PRAGMA_UNROLL_COUNT=4 $< -o $@
+	clang -std=c23 -D_GNU_SOURCE -S -masm=intel -fverbose-asm -I./include -O3 -march=native -funroll-loops -DQS_PRAGMA_UNROLL_COUNT=4 $< -o $@
 
 report/data/values.tex: $(REPORT_CSVS) report/macros.awk | report/data
 	awk -f report/macros.awk $(REPORT_CSVS) > $@
 
 report: $(TARGET) $(BUILD_DIR)/libqs_tui.so $(SIM_STAMPS) $(REPORT_CSVS) report/data/host_info.tex report/data/kernel_scalar.s report/data/kernel_unroll4.s report/data/values.tex
-	cd report && PATH=$(CURDIR)/report/.venv/bin:$$PATH latexmk -pdf -interaction=nonstopmode -shell-escape main.tex
+	cd report && PATH=$(CURDIR)/report/.venv/bin:$$PATH latexmk -pdflua -interaction=nonstopmode -shell-escape main.tex
 
 clean-KeepProf:
 	rm -rf $(BUILD_DIR) $(TARGET)

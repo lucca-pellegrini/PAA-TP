@@ -25,7 +25,7 @@ for sty in $(grep -rhE '\\\\(usepackage|RequirePackage)(\\[[^]]*\\])?\\{[^}]+\\}
   fi
 done
 
-for extra in babel-portuges hyphen-portuguese pgfplots siunitx booktabs newtx microtype cleveref embedfile latexmk minted; do
+for extra in babel-portuges hyphen-portuguese pgfplots siunitx booktabs newtx microtype cleveref embedfile latexmk minted tex-gyre tex-gyre-math; do
   if ! tlmgr info --only-installed "$extra" 2>/dev/null | grep -q "installed: Yes"; then
     pkgs+=("$extra")
   fi

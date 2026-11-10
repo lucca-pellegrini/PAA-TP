@@ -250,7 +250,7 @@ static bool compile_kernel_asm(const QsJitOptions *opts, const char *asm_path)
 
 	char cmd[2048];
 	int n = snprintf(cmd, sizeof(cmd),
-			 "%s -std=c23 -D_GNU_SOURCE -S -fverbose-asm -I%s/include %s%s "
+			 "%s -std=c23 -D_GNU_SOURCE -S -masm=intel -fverbose-asm -I%s/include %s%s "
 			 "%s/src/quicksort_kernel.c -o '%s' 2>'%s.log'",
 			 cc, QS_SOURCE_ROOT, cflags, pragma_defs, QS_SOURCE_ROOT, asm_path,
 			 asm_path);

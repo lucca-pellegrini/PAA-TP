@@ -7,12 +7,30 @@
 \AddToHook{begindocument/before}[sbc-template]{\relax}
 
 \usepackage{graphicx,url}
-\usepackage[utf8]{inputenc}
+\usepackage{iftex}
+\ifpdftex
+  \usepackage[utf8]{inputenc}
+  \usepackage[T1]{fontenc}
+  \usepackage{amsmath,amssymb}
+  \usepackage{newtxtext,newtxmath}
+\else
+  \usepackage{fontspec}
+  \usepackage{unicode-math}
+  \setmainfont{TeX Gyre Termes}
+  \setmathfont{TeX Gyre Termes Math}
+  \setmonofont{IosevkaCustom-Condensed}[
+    Path = fonts/iosevka/,
+    Extension = .ttf,
+    UprightFont = *,
+    BoldFont = *Bold,
+    ItalicFont = *Italic,
+    BoldItalicFont = *BoldItalic,
+    Scale = MatchLowercase
+  ]
+\fi
 \usepackage[brazilian]{babel}
-\usepackage{amsmath,amssymb}
 \usepackage{booktabs}
 \usepackage{csquotes}
-\usepackage{newtxtext,newtxmath}
 \usepackage{siunitx}
 \sisetup{output-decimal-marker = {,}}
 \usepackage{pgfplots}
@@ -271,7 +289,7 @@ A \cref{tab:jit-assembly-full} apresenta os resultados completos obtidos na camp
 
 \section{Apêndice: Listagens de Código de Máquina}\label{sec:apendice-asm}
 
-Este apêndice analisa os excertos de código de máquina emitidos pelo compilador para os laços críticos do algoritmo Quicksort e avalia as transformações microarquiteturais causadas por níveis de otimização e diretivas pragmáticas de laço.
+Este apêndice analisa os excertos de código de máquina emitidos pelo compilador para os laços críticos do algoritmo Quicksort e avalia as transformações microarquiteturais causadas por níveis de otimização e diretivas pragmáticas de laço. Todas as listagens adotam a sintaxe Intel para a arquitetura x86-64 com extensões vetoriais avançadas (AVX2), com o registrador de destino à esquerda e identificação explícita de larguras de memória.
 
 \subsection{Laços de Partição e Seleção Condicional}\label{sec:apendice-asm-particao}
 
@@ -281,19 +299,34 @@ Nesse trecho, a instrução de ou-exclusivo lógico zera o registrador ao operar
 
 \begin{figure}[htbp]
 \centering
-\begin{minted}[fontsize=\small, linenos=false, breaklines=true]{gas}
+\begin{minipage}[t]{0.48\textwidth}
+\begin{minted}[fontsize=\scriptsize, linenos=false, breaklines=true]{nasm}
 .LBB2_322:
-  xorl    %r10d, %r10d
-  xorl    %r11d, %r11d
-  cmpl    4(%rax,%r9,4), %esi
-  setl    %r10b
-  setg    %r11b
-  testl   %ecx, %ecx
-  cmovel  %r10d, %r11d
-  testb   %r11b, %r11b
+  xor     r10d, r10d
+  xor     r11d, r11d
+  cmp     esi, dword ptr [rax + 4*r9 + 4]
+  setl    r10b
+  setg    r11b
+  test    ecx, ecx
+  cmove   r11d, r10d
+  test    r11b, r11b
   jne     .LBB2_324
 \end{minted}
-\caption{Laço de partição sob compilação nativa com otimização máxima.}
+\end{minipage}\hfill
+\begin{minipage}[t]{0.48\textwidth}
+\begin{minted}[fontsize=\scriptsize, linenos=false, breaklines=true]{c}
+// Descompilação equivalente
+int a = esi;
+int b = arr[r9 + 1]; // [rax + 4*r9 + 4]
+int flag = ecx;      // 0: ASC, 1: DESC
+
+bool cond = (flag == 0) ? (a < b)
+                        : (a > b);
+if (cond)
+    goto LBB2_324;
+\end{minted}
+\end{minipage}
+\caption{Laço de partição sob compilação nativa (à esquerda) e descompilação equivalente (à direita).}
 \label{fig:asm-scalar}
 \end{figure}
 
@@ -303,20 +336,39 @@ Em contrapartida, a imposição de desenrolamento forçado com fator quatro repl
 
 \begin{figure}[htbp]
 \centering
-\begin{minted}[fontsize=\small, linenos=false, breaklines=true]{gas}
-  xorl    %edi, %edi
-  xorl    %r9d, %r9d
-  cmpl    %ecx, %edx
-  setl    %dil
-  setg    %r9b
-  testl   %r8d, %r8d
-  cmovel  %edi, %r9d
-  cmpb    $1, %r9b
+\begin{minipage}[t]{0.48\textwidth}
+\begin{minted}[fontsize=\scriptsize, linenos=false, breaklines=true]{nasm}
+  xor     edi, edi
+  xor     r9d, r9d
+  cmp     edx, ecx
+  setl    dil
+  setg    r9b
+  test    r8d, r8d
+  cmove   r9d, edi
+  cmp     r9b, 1
   jne     .LBB1_79
-  movl    %edx, (%rsi,%rbp,4)
-  movl    %ecx, (%rsi,%rax,4)
+  mov     dword ptr [rsi + 4*rbp], edx
+  mov     dword ptr [rsi + 4*rax], ecx
 \end{minted}
-\caption{Laço sob desenrolamento forçado com fator quatro.}
+\end{minipage}\hfill
+\begin{minipage}[t]{0.48\textwidth}
+\begin{minted}[fontsize=\scriptsize, linenos=false, breaklines=true]{c}
+// Descompilação da iteração
+int a = edx;    // arr[rax]
+int b = ecx;    // arr[rbp]
+int flag = r8d; // 0: ASC, 1: DESC
+
+bool cond = (flag == 0) ? (a < b)
+                        : (a > b);
+if (!cond)
+    goto LBB1_79; // Pula se em ordem
+
+// Troca in-place se violar a ordem
+arr[rbp] = a;   // [rsi + 4*rbp]
+arr[rax] = b;   // [rsi + 4*rax]
+\end{minted}
+\end{minipage}
+\caption{Laço sob desenrolamento forçado com fator quatro (à esquerda) e descompilação equivalente (à direita).}
 \label{fig:asm-unroll}
 \end{figure}
 
@@ -330,21 +382,44 @@ Entretanto, o deslocamento de elementos na ordenação por inserção do caso ba
 
 \begin{figure}[htbp]
 \centering
-\begin{minted}[fontsize=\small, linenos=false, breaklines=true]{gas}
+\begin{minipage}[t]{0.48\textwidth}
+\begin{minted}[fontsize=\scriptsize, linenos=false, breaklines=true]{nasm}
 .LBB4_579:
-  vmovups -100(%rsi,%r12,4), %ymm0
-  vmovups -68(%rsi,%r12,4), %ymm1
-  vmovups -36(%rsi,%r12,4), %ymm2
-  vmovups -4(%rsi,%r12,4), %ymm3
-  vmovups %ymm3, (%rsi,%r12,4)
-  vmovups %ymm2, -32(%rsi,%r12,4)
-  vmovups %ymm1, -64(%rsi,%r12,4)
-  vmovups %ymm0, -96(%rsi,%r12,4)
-  addq    $-32, %r12
-  cmpq    %r12, %r15
+  vmovups ymm0, ymmword ptr [rsi + 4*r12 - 100]
+  vmovups ymm1, ymmword ptr [rsi + 4*r12 - 68]
+  vmovups ymm2, ymmword ptr [rsi + 4*r12 - 36]
+  vmovups ymm3, ymmword ptr [rsi + 4*r12 - 4]
+  vmovups ymmword ptr [rsi + 4*r12], ymm3
+  vmovups ymmword ptr [rsi + 4*r12 - 32], ymm2
+  vmovups ymmword ptr [rsi + 4*r12 - 64], ymm1
+  vmovups ymmword ptr [rsi + 4*r12 - 96], ymm0
+  add     r12, -32
+  cmp     r15, r12
   jne     .LBB4_579
 \end{minted}
-\caption{Translação vetorial com instruções de duzentos e cinquenta e seis bits no subvetor base sob compilação nativa.}
+\end{minipage}\hfill
+\begin{minipage}[t]{0.48\textwidth}
+\begin{minted}[fontsize=\scriptsize, linenos=false, breaklines=true]{c}
+// Translação de 32 inteiros (4x AVX2)
+// arr = (int*)rsi, k = r12, lim = r15
+do {
+    // Carrega 4 blocos de 8 inteiros
+    __m256i y0 = loadu256(&arr[k - 25]);
+    __m256i y1 = loadu256(&arr[k - 17]);
+    __m256i y2 = loadu256(&arr[k - 9]);
+    __m256i y3 = loadu256(&arr[k - 1]);
+
+    // Grava transladando 1 elemento
+    storeu256(&arr[k - 24], y0);
+    storeu256(&arr[k - 16], y1);
+    storeu256(&arr[k - 8],  y2);
+    storeu256(&arr[k],      y3);
+
+    k -= 32;
+} while (k != lim);
+\end{minted}
+\end{minipage}
+\caption{Translação vetorial com instruções de duzentos e cinquenta e seis bits no subvetor base (à esquerda) e descompilação equivalente (à direita).}
 \label{fig:asm-simd}
 \end{figure}
 
@@ -354,21 +429,37 @@ Ao desativar a vetorização por sinalizadores de compilação, o compilador rec
 
 \begin{figure}[htbp]
 \centering
-\begin{minted}[fontsize=\small, linenos=false, breaklines=true]{gas}
+\begin{minipage}[t]{0.48\textwidth}
+\begin{minted}[fontsize=\scriptsize, linenos=false, breaklines=true]{nasm}
 .LBB1_130:
-  movl    -4(%rsi,%r8,4), %r13d
-  decq    %r8
-  xorl    %r14d, %r14d
-  xorl    %r15d, %r15d
-  cmpl    %edx, %r13d
-  setl    %r14b
-  setg    %r15b
-  testl   %r11d, %r11d
-  cmovel  %r14d, %r15d
-  testb   %r15b, %r15b
+  mov     r13d, dword ptr [rsi + 4*r8 - 4]
+  dec     r8
+  xor     r14d, r14d
+  xor     r15d, r15d
+  cmp     r13d, edx
+  setl    r14b
+  setg    r15b
+  test    r11d, r11d
+  cmove   r15d, r14d
+  test    r15b, r15b
   je      .LBB1_130
 \end{minted}
-\caption{Varredura e comparação escalar com vetorização desativada.}
+\end{minipage}\hfill
+\begin{minipage}[t]{0.48\textwidth}
+\begin{minted}[fontsize=\scriptsize, linenos=false, breaklines=true]{c}
+// Varredura escalar no subvetor
+// arr = (int*)rsi, j = r8, key = edx
+do {
+    int elem = arr[j - 1]; // r13d
+    j--;                   // dec r8
+    int flag = r11d;       // 0:ASC, 1:DESC
+
+    bool cond = (flag == 0) ? (elem < key)
+                            : (elem > key);
+} while (!cond); // je .LBB1_130
+\end{minted}
+\end{minipage}
+\caption{Varredura e comparação escalar com vetorização desativada (à esquerda) e descompilação equivalente (à direita).}
 \label{fig:asm-novec}
 \end{figure}
 
