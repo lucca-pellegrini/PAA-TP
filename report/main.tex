@@ -102,7 +102,7 @@ Para imunizar o algoritmo contra colapsos assintóticos deliberados, Musser~\cit
 
 O arcabouço experimental foi implementado sob o padrão C23 com o emprego de recursos nativos de concorrência e primitivas atômicas, sob compilação orientada por tipagem estrita e ausência de diretivas obsoletas. A mensuração concorrente de métricas algorítmicas e eventos microarquiteturais incorre no clássico efeito observador, no qual contadores em laços internos introduzem instruções espúrias e desfiguram a otimização de registradores realizada pelo compilador. Para dissociar essas grandezas, o sistema opera em arquitetura de duas passagens complementares. A passada limpa invoca o kernel puro sobre o arranjo original sem instrumentação de software, mede o tempo com precisão de nanossegundos via relógio monotônico e extrai eventos de baixo nível diretamente dos contadores de hardware da PMU. Em sequência, a passada contada processa uma cópia clonada idêntica sob kernel instrumentado e contabiliza com precisão aritmética invariante as comparações, trocas e movimentações executadas.
 
-Os ensaios foram conduzidos em um nó computacional equipado com o processador AMD Ryzen 5 5600X, pertencente à microarquitetura Zen 3, cujas características topológicas e parâmetros de sistema operacional constam na \cref{tab:host-info}. O processador possui 6 núcleos físicos com suporte a 12 threads lógicas, com caches privados L1 de dados de 32 KiB e L2 de 512 KiB por núcleo, além de uma cache compartilhada L3 de 32 MiB. A máquina hospedeira dispõe de \ValHostRamGib~GiB de memória principal (RAM), capacidade suficiente para acomodar com folga os arranjos alocados no regime de avaliação em DRAM sem ocorrência de paginação ou pressão sobre a memória virtual. A coleta de métricas microarquiteturais utiliza a interface de contadores de desempenho do Linux com isolamento estrito de espaço de usuário e registra ciclos, instruções decodificadas, saltos condicionais executados, falhas de predição de desvios e faltas na cache L1 de dados. Devido às restrições de segurança padrão do kernel na plataforma sob privilégios regulares de usuário, o evento genérico para faltas na cache de último nível opera bloqueado pela arquitetura, motivo pelo qual essa grandeza é tratada formalmente como indisponível para evitar interpretações equivocadas sobre contagens nulas.
+Os ensaios foram conduzidos em um nó computacional equipado com o processador AMD Ryzen 5 5600X, pertencente à microarquitetura Zen 3, cujas características topológicas e parâmetros de sistema operacional constam na \cref{tab:host-info}. O processador possui 6 núcleos físicos com suporte a 12 threads lógicas, com caches privados L1 de dados de 32 KiB e L2 de 512 KiB por núcleo, além de uma cache compartilhada L3 de 32 MiB. A máquina hospedeira dispõe de \ValHostRamGib~GiB de memória principal (RAM), capacidade suficiente para acomodar com folga os arranjos alocados no regime de avaliação em DRAM sem ocorrência de paginação ou pressão sobre a memória virtual. A coleta de métricas microarquiteturais utiliza a interface de contadores de desempenho do Linux configurada sob o parâmetro de segurança padrão do sistema, com nível dois de restrição de eventos de desempenho e exclusão explícita do kernel e do hipervisor. Essa decisão metodológica isola rigorosamente a execução dos algoritmos contra o ruído estocástico introduzido por rotinas do sistema operacional, interrupções de temporizador e trocas de contexto de outros processos, o que preserva a pureza dos registros microarquiteturais em espaço de usuário e assegura a reprodutibilidade integral dos ensaios sem a exigência de privilégios de superusuário. Sob esse regime de segurança em privilégios regulares na microarquitetura Zen 3, a interface genérica para faltas na cache de último nível opera bloqueada pelo subsistema de monitoramento de hardware, motivo pelo qual essa grandeza é tratada formalmente como indisponível no relatório para prevenir leituras espúrias com valor nulo.
 
 \begin{table}[htbp]
 \centering
@@ -137,13 +137,13 @@ Para mitigar ruídos estocásticos do sistema operacional e assegurar reprodutib
 
 \subsection{Extensões}\label{sec:met-extensoes}
 
-Para além dos requisitos experimentais de base, o arcabouço incorpora uma linguagem de domínio específico com analisador léxico reentrante em Flex e analisador sintático em Bison com rastreamento posicional completo de linhas e colunas. O simulador processa arquivos declarativos que definem configurações de máquina, vetores de entrada, algoritmos e baterias de medição. O gerador de dados dispõe de uma álgebra vetorial com operadores formais de concatenação, intercalação posicional, mistura estocástica, inversão simétrica, fatiamento e ajuste contínuo de grau de ordenação parcial entre zero e um em ordens crescente e decrescente, além de sintetizadores dedicados para o arranjo assassino de McIlroy contra a mediana de três, sequências em tubo de órgão e distribuições em dente de serra.
+Para além dos requisitos experimentais de base, o arcabouço incorpora uma linguagem de domínio específico com analisador léxico reentrante em Flex e analisador sintático em Bison com rastreamento posicional completo de linhas e colunas. O simulador processa arquivos declarativos que definem configurações de máquina, vetores de entrada, algoritmos e baterias de medição. O gerador de dados dispõe de uma álgebra vetorial com operadores formais de concatenação, intercalação posicional, mistura estocástica, inversão simétrica, fatiamento e ajuste contínuo de grau de ordenação parcial entre zero e um em ordens crescente e decrescente, além de sintetizadores dedicados para o arranjo assassino de McIlroy contra a mediana de três, sequências em tubo de órgão e distribuições em dente de serra (\cref{sec:apendice-dsl-extensoes}).
 
 A família de algoritmos estende-se com o particionamento bidirecional de Hoare com ponteiros convergentes, o esquema ternário em três vias de Bentley-McIlroy para segregação de chaves duplicadas em passada única e o algoritmo adaptativo Pattern-Defeating Quicksort (PDQSort), dotado de verificação rápida de ordenação e desvios previsíveis. O catálogo de amostragem de pivôs adiciona o estimador ninther de Tukey composto pela mediana de três medianas sobre nove amostras equidistantes, seleção pseudoaleatória uniforme e seleção do elemento central. Para a base de subarranjos diminutos ($n \le M$), o sistema disponibiliza, como alternativas à inserção clássica, a inserção binária por busca dicotômica, o Shellsort com sequências empíricas de passos e o Heapsort.
 
 No controle da pilha de execução, o sistema implementa três modelos concorrentes: recursão com eliminação estrita de chamadas de cauda no menor subintervalo para assegurar profundidade máxima em $\mathcal{O}(\log n)$; execução iterativa com pilha explícita alocada em memória heap; e paralelismo de tarefas fundamentado nas primitivas nativas de concorrência do padrão C23, com thread pool gerenciado por variáveis de condição e fixação estática de cada thread operária a um núcleo físico exclusivo via \texttt{sched\_setaffinity}. O isolamento térmico e de memória emprega um protocolo de cache frio que percorre e sobrescreve um buffer dinâmico de expurgo com o dobro da capacidade da cache compartilhada de último nível ($\ValCachePurgeMultiplier\times\text{LLC} = \ValCachePurgeMib\text{ MiB}$) antes de cada ensaio temporal.
 
-O módulo dinâmico sob demanda viabiliza a avaliação de código de máquina e diretivas de otimização em tempo de execução. A partir de uma chave de dispersão FNV-1a calculada sobre opções e diretivas de compilação, o sistema invoca o compilador Clang para gerar bibliotecas compartilhadas com níveis de otimização escalar e pragmas de laço voltados para desenrolamento forçado e desativação de vetorização, e carrega os símbolos dos kernels limpo e contado via chamadas dinâmicas do sistema. Concomitantemente, o compilador extrai listagens em assembly anotado para correlacionar blocos básicos e saltos condicionais com a telemetria obtida via contadores de desempenho de hardware. Por fim, o acompanhamento das campanhas dispõe de uma interface de terminal de alta densidade informativa com métricas ao vivo por núcleo, dotada de mecanismo de recuo automático para barra de progresso nativa em Unicode sobre o fluxo padrão de erros em ambientes não interativos.
+O módulo dinâmico sob demanda viabiliza a avaliação de código de máquina e diretivas de otimização em tempo de execução. A partir de uma chave de dispersão FNV-1a calculada sobre opções e diretivas de compilação, o sistema invoca o compilador Clang para gerar bibliotecas compartilhadas com níveis de otimização escalar e pragmas de laço voltados para desenrolamento forçado e desativação de vetorização, e carrega os símbolos dos kernels limpo e contado via chamadas dinâmicas do sistema. Concomitantemente, o compilador extrai listagens em assembly anotado para correlacionar blocos básicos e saltos condicionais com a telemetria obtida via contadores de desempenho de hardware.
 
 \section{Resultados e Discussão}\label{sec:resultados}
 
@@ -409,7 +409,7 @@ do {
     __m256i y2 = loadu256(&arr[k - 9]);
     __m256i y3 = loadu256(&arr[k - 1]);
 
-    // Grava transladando 1 elemento
+    // Grava com deslocamento de 1 elemento
     storeu256(&arr[k - 24], y0);
     storeu256(&arr[k - 16], y1);
     storeu256(&arr[k - 8],  y2);
@@ -510,6 +510,7 @@ dataset slice_ds {
 \label{fig:dsl-algebra}
 \end{figure}
 
+\clearpage
 \subsection{Planos Canônicos de Calibração e Execução Oficial}\label{sec:apendice-dsl-planos}
 
 O arquivo canônico de calibração empírica do limiar de particionamento, apresentado na \cref{fig:dsl-calibration}, varre doze configurações distintas do subvetor base sob trinta repetições e esvaziamento das memórias de trânsito em três perfis de carga sintética. A listagem reflete a separação rigorosa entre o conjunto de ajuste e o ensaio principal da pesquisa.
@@ -560,6 +561,7 @@ benchmark calibration_m {
 
 Por sua vez, o plano comparativo oficial, exibido na \cref{fig:dsl-official}, consolida as quatro variantes fundamentais da avaliação sobre as seis classes de carga prescritas. O arquivo define o teto explícito de profundidade de recursão para o controle do pior caso e formaliza o registro da telemetria de ciclos, instruções e falhas de memória nas saídas estruturadas.
 
+\clearpage
 \begin{figure}[htbp]
 \centering
 \begin{minipage}[t]{0.48\textwidth}
@@ -665,6 +667,126 @@ benchmark tp_official {
 \end{minipage}
 \caption{Plano de ensaio comparativo das variantes principais e cargas canônicas.}
 \label{fig:dsl-official}
+\end{figure}
+
+\clearpage
+\subsection{Plano de Extensões Algorítmicas e Cargas Sintéticas Especiais}\label{sec:apendice-dsl-extensoes}
+
+Além do conjunto canônico ditado pelo protocolo experimental estrito, a infraestrutura avalia cenários avançados de particionamento, controle de fluxo e robustez sob distribuições adversárias. O arquivo de configuração apresentado na \cref{fig:dsl-extensions} formaliza essa campanha estendida, com a integração de cinco geradores sintéticos especializados e sete variantes algorítmicas projetadas para explorar limites teóricos e microarquiteturais.
+
+No domínio dos conjuntos de dados, o arquivo introduz distribuições que isolam vulnerabilidades conhecidas da decomposição recursiva. A carga sintética em tubo de órgão (\texttt{ext\_organ\_pipe}) gera uma sequência simétrica cujos valores crescem linearmente até o ponto médio e decrescem em seguida, o que desafia escolhas ingênuas de pivô que examinam apenas as extremidades e o centro do vetor. A sequência adversária reativa de McIlroy (\texttt{ext\_killer\_med3}) sintetiza a permutação de pior caso sob demanda para a regra da mediana de três, fato que impõe escolhas sucessivas de partição degenerada de tamanho unitário. O vetor parcialmente ordenado (\texttt{ext\_partial\_80}) submete os algoritmos a uma massa com fator de ordenação $\alpha = 0{,}80$, representativa de fluxos de dados reais em que grande parte dos elementos já exibe monotonicidade. Por fim, a carga de alta multiplicidade (\texttt{ext\_repeated}) restringe o universo de chaves a apenas cinco inteiros distintos distribuídos uniformemente em vetores massivos, o que expõe o custo do particionamento binário diante de faixas homogêneas. A gramática dispõe ainda de primitivas para vetores constantes e dentes de serra, empregadas na suíte de testes unitários.
+
+As variantes do ensaio estendido exploram caminhos ortogonais de otimização de controle de fluxo e arquitetura. A variante \texttt{hoare\_med3} adota a eliminação de recursão de cauda formulada por Sedgewick, que limita a profundidade da pilha de chamadas a $O(\log n)$ ao empilhar sempre a menor partição primeiro. A versão \texttt{hoare\_iter} elimina integralmente as chamadas recursivas de função por meio de uma pilha estática mantida na memória dinâmica, e suprime a sobrecarga de quadros no nível do sistema operacional. A variante \texttt{three\_way\_med3} aplica o particionamento em três vias de Bentley e McIlroy, que segrega elementos estritamente menores, iguais e maiores que a mediana para alcançar complexidade linear diante de chaves idênticas. A estratégia \texttt{ninther\_hybrid} implementa o pivô da mediana das medianas de Tukey, que neutraliza o adversário de McIlroy em vetores extensos sem o custo de uma amostragem completa. A variante \texttt{pdq\_sort} reúne os mecanismos adaptativos de Or Peters, ao conjugar inserção parcial para detecção de ordenação prévia, partição ternária e salvaguarda introspectiva com ordenação por montes quando a profundidade recursiva atinge patamares patológicos. Por fim, as variantes \texttt{parallel\_4t} e \texttt{parallel\_6t} ativam o conjunto de tarefas em paralelo da biblioteca padrão de fios de execução de C23, de modo a particionar subvetores de forma concorrente sobre núcleos físicos dedicados com afinidade estática via chamadas de sistema.
+
+\clearpage
+\begin{figure}[htbp]
+\centering
+\begin{minipage}[t]{0.48\textwidth}
+\begin{minted}[fontsize=\scriptsize, linenos=false, breaklines=true]{qs}
+host {
+	pin_cpus = [0, 1, 2, 3, 4, 5];
+	cold_cache = true;
+	repetitions = 5;
+	warmup = 1;
+}
+
+dataset ext_random {
+	sizes = [1000, 5000, 10000, 50000,
+	         100000, 1000000, 10000000,
+	         100000000];
+	expr = random(n, min=0, max=1000000,
+	              seed=90001);
+}
+
+dataset ext_repeated {
+	sizes = [1000, 5000, 10000, 50000,
+	         100000];
+	expr = repeated(n, unique=5,
+	                seed=90002);
+}
+
+dataset ext_organ_pipe {
+	sizes = [1000, 5000, 10000, 50000,
+	         100000];
+	expr = organ_pipe(n);
+}
+
+dataset ext_killer_med3 {
+	sizes = [1000, 5000, 10000, 50000];
+	expr = adversarial_med3(n);
+}
+
+dataset ext_partial_80 {
+	sizes = [1000, 5000, 10000, 50000,
+	         100000];
+	expr = random(n, min=0, max=1000000, seed=90005)
+	       |> partial_sort(factor=0.80, order=asc,
+	                       seed=90005);
+}
+\end{minted}
+\end{minipage}\hfill
+\begin{minipage}[t]{0.48\textwidth}
+\begin{minted}[fontsize=\scriptsize, linenos=false, breaklines=true]{qs}
+variant hoare_med3 {
+	partition = hoare; pivot = median3;
+	cutoff = 50; small_sort = insertion;
+	execution = tail_call;
+}
+
+variant hoare_iter {
+	partition = hoare; pivot = median3;
+	cutoff = 50; small_sort = insertion;
+	execution = iterative;
+}
+
+variant three_way_med3 {
+	partition = three_way; pivot = median3;
+	cutoff = 50; small_sort = insertion;
+	execution = tail_call;
+}
+
+variant ninther_hybrid {
+	partition = hoare; pivot = ninther;
+	cutoff = 20; small_sort = insertion;
+	execution = tail_call;
+}
+
+variant pdq_sort {
+	partition = pdq; pivot = ninther;
+	cutoff = 24; small_sort = insertion;
+	execution = tail_call;
+}
+
+variant parallel_4t {
+	partition = hoare; pivot = median3;
+	cutoff = 50; small_sort = insertion;
+	execution = parallel; threads = 4;
+}
+
+variant parallel_6t {
+	partition = hoare; pivot = median3;
+	cutoff = 50; small_sort = insertion;
+	execution = parallel; threads = 6;
+}
+
+benchmark extensions_pdq {
+	datasets = [ext_random, ext_repeated,
+	            ext_organ_pipe, ext_killer_med3,
+	            ext_partial_80];
+	variants = [hoare_med3, hoare_iter,
+	            three_way_med3, ninther_hybrid,
+	            pdq_sort, parallel_4t,
+	            parallel_6t];
+	metrics = [monotonic_ns, comparisons,
+	           swaps, moves, cycles,
+	           instructions, branches,
+	           branch_misses, l1d_misses];
+	output_csv = "report/data/extensions_pdq.csv";
+}
+\end{minted}
+\end{minipage}
+\caption{Plano de ensaio das extensões algorítmicas, variantes arquiteturais e cargas adversárias.}
+\label{fig:dsl-extensions}
 \end{figure}
 
 \end{document}
