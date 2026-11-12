@@ -445,6 +445,46 @@ END {
     def_cmd("ValExtRandIpcTypMin", "1{,}2")
     def_cmd("ValExtRandIpcTypMax", "1{,}3")
 
+    # Min/max para JIT 50k em dados aleatórios e ordenados
+    jit_v_list[1] = "cflags_o1"; jit_v_prefix[1] = "OOne"
+    jit_v_list[2] = "cflags_o2"; jit_v_prefix[2] = "OTwo"
+    jit_v_list[3] = "cflags_o3_native"; jit_v_prefix[3] = "OThree"
+    jit_v_list[4] = "pragma_no_unroll"; jit_v_prefix[4] = "NoUnroll"
+    jit_v_list[5] = "pragma_unroll_4"; jit_v_prefix[5] = "UnrollFour"
+    jit_v_list[6] = "pragma_no_vec"; jit_v_prefix[6] = "NoVec"
+
+    jit_rand50_br_min = 0; jit_rand50_br_max = 0
+    jit_rand50_ipc_min = 0; jit_rand50_ipc_max = 0
+    jit_sort50_br_min = 0; jit_sort50_br_max = 0
+    jit_sort50_ipc_min = 0; jit_sort50_ipc_max = 0
+
+    for (v = 1; v <= 6; v++) {
+        jv = jit_v_list[v]
+        r_br = jit_br["jit_random", jv, 50000]
+        r_ipc = jit_ipc["jit_random", jv, 50000]
+        s_br = jit_br["jit_sorted", jv, 50000]
+        s_ipc = jit_ipc["jit_sorted", jv, 50000]
+
+        if (jit_rand50_br_min == 0 || r_br < jit_rand50_br_min) jit_rand50_br_min = r_br
+        if (r_br > jit_rand50_br_max) jit_rand50_br_max = r_br
+        if (jit_rand50_ipc_min == 0 || r_ipc < jit_rand50_ipc_min) jit_rand50_ipc_min = r_ipc
+        if (r_ipc > jit_rand50_ipc_max) jit_rand50_ipc_max = r_ipc
+
+        if (jit_sort50_br_min == 0 || s_br < jit_sort50_br_min) jit_sort50_br_min = s_br
+        if (s_br > jit_sort50_br_max) jit_sort50_br_max = s_br
+        if (jit_sort50_ipc_min == 0 || s_ipc < jit_sort50_ipc_min) jit_sort50_ipc_min = s_ipc
+        if (s_ipc > jit_sort50_ipc_max) jit_sort50_ipc_max = s_ipc
+    }
+
+    def_cmd("ValJitFiftyKRandBrMin", fmt_dec(jit_rand50_br_min, 1))
+    def_cmd("ValJitFiftyKRandBrMax", fmt_dec(jit_rand50_br_max, 1))
+    def_cmd("ValJitFiftyKRandIpcMin", fmt_dec(jit_rand50_ipc_min, 2))
+    def_cmd("ValJitFiftyKRandIpcMax", fmt_dec(jit_rand50_ipc_max, 2))
+    def_cmd("ValJitFiftyKSortBrMin", fmt_dec(jit_sort50_br_min, 2))
+    def_cmd("ValJitFiftyKSortBrMax", fmt_dec(jit_sort50_br_max, 2))
+    def_cmd("ValJitFiftyKSortIpcMin", fmt_dec(jit_sort50_ipc_min, 2))
+    def_cmd("ValJitFiftyKSortIpcMax", fmt_dec(jit_sort50_ipc_max, 2))
+
     def_cmd("ValPmuRegularBranchMissCutoff", "1")
     killer_br = ext_br["ext_killer_med3", "hoare_med3", 50000]
     sorted_br = jit_br["jit_sorted", "cflags_o3_native", 100000]

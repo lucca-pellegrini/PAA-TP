@@ -22,18 +22,18 @@ dataset cal_repeated {
 	expr = repeated(n, unique=100, seed=202603);
 }
 
-variant m_00 { partition = hoare; pivot = last; cutoff = 0;  small_sort = none;      execution = recursive; }
-variant m_04 { partition = hoare; pivot = last; cutoff = 4;  small_sort = insertion; execution = recursive; }
-variant m_08 { partition = hoare; pivot = last; cutoff = 8;  small_sort = insertion; execution = recursive; }
-variant m_10 { partition = hoare; pivot = last; cutoff = 10; small_sort = insertion; execution = recursive; }
-variant m_12 { partition = hoare; pivot = last; cutoff = 12; small_sort = insertion; execution = recursive; }
-variant m_16 { partition = hoare; pivot = last; cutoff = 16; small_sort = insertion; execution = recursive; }
-variant m_20 { partition = hoare; pivot = last; cutoff = 20; small_sort = insertion; execution = recursive; }
-variant m_24 { partition = hoare; pivot = last; cutoff = 24; small_sort = insertion; execution = recursive; }
-variant m_30 { partition = hoare; pivot = last; cutoff = 30; small_sort = insertion; execution = recursive; }
-variant m_40 { partition = hoare; pivot = last; cutoff = 40; small_sort = insertion; execution = recursive; }
-variant m_50 { partition = hoare; pivot = last; cutoff = 50; small_sort = insertion; execution = recursive; }
-variant m_64 { partition = hoare; pivot = last; cutoff = 64; small_sort = insertion; execution = recursive; }
+variant m_00 { partition = hoare; pivot = middle; cutoff = 0;  small_sort = none;      execution = recursive; }
+variant m_04 { partition = hoare; pivot = middle; cutoff = 4;  small_sort = insertion; execution = recursive; }
+variant m_08 { partition = hoare; pivot = middle; cutoff = 8;  small_sort = insertion; execution = recursive; }
+variant m_10 { partition = hoare; pivot = middle; cutoff = 10; small_sort = insertion; execution = recursive; }
+variant m_12 { partition = hoare; pivot = middle; cutoff = 12; small_sort = insertion; execution = recursive; }
+variant m_16 { partition = hoare; pivot = middle; cutoff = 16; small_sort = insertion; execution = recursive; }
+variant m_20 { partition = hoare; pivot = middle; cutoff = 20; small_sort = insertion; execution = recursive; }
+variant m_24 { partition = hoare; pivot = middle; cutoff = 24; small_sort = insertion; execution = recursive; }
+variant m_30 { partition = hoare; pivot = middle; cutoff = 30; small_sort = insertion; execution = recursive; }
+variant m_40 { partition = hoare; pivot = middle; cutoff = 40; small_sort = insertion; execution = recursive; }
+variant m_50 { partition = hoare; pivot = middle; cutoff = 50; small_sort = insertion; execution = recursive; }
+variant m_64 { partition = hoare; pivot = middle; cutoff = 64; small_sort = insertion; execution = recursive; }
 
 benchmark calibration_m {
 	datasets = [cal_random, cal_partial, cal_repeated];
