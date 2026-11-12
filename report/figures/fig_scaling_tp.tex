@@ -106,16 +106,6 @@
         discard if not={variant}{trad}
     ] {data/tp_official.csv};
 \addlegendentry{Repetido -- Tradicional (Hoare centro)}
-
-\addplot[color=purple!80!black, mark=star, mark size=1.2pt, semithick, dashdotted]
-    table [
-        col sep=comma,
-        x=n,
-        y=mean_ms,
-        discard if not={dataset}{worst_case},
-        discard if not={variant}{trad_fixed}
-    ] {data/tp_official.csv};
-\addlegendentry{Pior caso -- Pivô fixo (Hoare primeiro)}
 \end{axis}
 \end{tikzpicture}
 \end{minipage}\hfill
@@ -131,7 +121,7 @@
     log basis y={10},
     xlabel={Dimensão do vetor ($n$)},
     ylabel={Tempo médio (\unit{\milli\second})},
-    title={(b) Piores Casos e Adversários ($n \le 10^5$)},
+    title={(b) Adversário de McIlroy e Cargas Estruturadas ($n \le 10^5$)},
     title style={font=\footnotesize\bfseries, yshift=-1.5ex},
     xmin=800, xmax=130000,
     ymin=0.001, ymax=300,
@@ -160,7 +150,7 @@
         discard if not={dataset}{worst_case_med3},
         discard if not={variant}{hybrid_med3}
     ] {data/tp_official.csv};
-\addlegendentry{Pior caso Med3 -- Híb.+Med3}
+\addlegendentry{Adversário McIlroy -- Híb.+Med3}
 
 \addplot[color=blue!80!black, mark=square*, mark size=1.0pt, semithick, dashed]
     table [
@@ -170,7 +160,7 @@
         discard if not={dataset}{worst_case_med3},
         discard if not={variant}{trad}
     ] {data/tp_official.csv};
-\addlegendentry{Pior caso Med3 -- Tradicional}
+\addlegendentry{Adversário McIlroy -- Tradicional}
 
 \addplot[color=red!80!black, mark=otimes*, mark size=1.1pt, semithick]
     table [
@@ -180,7 +170,7 @@
         discard if not={dataset}{worst_case_med3},
         discard if not={variant}{trad_fixed}
     ] {data/tp_official.csv};
-\addlegendentry{Pior caso Med3 -- Pivô fixo}
+\addlegendentry{Adversário McIlroy -- Pivô fixo}
 
 \addplot[color=teal!80!black, mark=diamond*, mark size=1.1pt, semithick, dotted]
     table [
@@ -190,7 +180,7 @@
         discard if not={dataset}{worst_case_med3},
         discard if not={variant}{hybrid}
     ] {data/tp_official.csv};
-\addlegendentry{Pior caso Med3 -- Híbrido}
+\addlegendentry{Adversário McIlroy -- Híbrido}
 
 \addplot[color=olive!80!black, mark=triangle*, mark size=1.2pt, semithick]
     table [
@@ -221,6 +211,6 @@
 \pgfplotslegendfromname{leg:scaling-tp-left}\\[0.6ex]
 \pgfplotslegendfromname{leg:scaling-tp-right}
 \vspace{-0.5ex}
-\caption{Escalabilidade assintótica (escala log-log) do tempo médio em função de $n$. No painel (a), a linha de base tradicional com Hoare e elemento central preserva regime linear-logarítmico em vetores ordenados e repetidos, ao passo que a escolha de pivô fixo degenera quadraticamente. No painel (b), o adversário determinístico de McIlroy precipita o colapso quadrático de todas as variantes baseadas em mediana de três ou elemento central a partir de $n \ge 15\,000$, deflagrando a salvaguarda de profundidade recursiva ($d \ge 4096$).}
+\caption{Escalabilidade assintótica (escala log-log) do tempo médio em função de $n$. No painel (a), a linha de base tradicional com Hoare e elemento central preserva regime linear-logarítmico em vetores ordenados e repetidos, ao passo que a escolha de pivô fixo no pior caso clássico degenera quadraticamente. No painel (b), o adversário determinístico de McIlroy precipita o colapso quadrático de todas as variantes baseadas em mediana de três ou elemento central a partir de $n \ge 15\,000$, com o disparo da salvaguarda de profundidade recursiva ($d \ge 4096$).}
 \label{fig:scaling-tp}
 \end{figure}

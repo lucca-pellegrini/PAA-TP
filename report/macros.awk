@@ -91,6 +91,8 @@ FILENAME ~ /host_info\.csv$/ {
     n = $(col["n"]) + 0
     ok = $(col["sorted_ok"]) + 0
 
+    if (bm == "tp_official" && ds == "worst_case") next
+
     total_configs++
     if (ok == 1) sorted_ok_count++
 }
@@ -100,9 +102,12 @@ bm == "calibration_m" {
     cal_std[ds, var, n] = $(col["stddev_ns"]) + 0
     cal_rep[ds, var, n] = $(col["repetitions"]) + 0
     cal_cmp[ds, var, n] = $(col["comparisons"]) + 0
+    if (cal_repetitions == 0) cal_repetitions = $(col["repetitions"]) + 0
 }
 
 bm == "tp_official" {
+    if (ds == "worst_case") next
+    if (tp_repetitions == 0) tp_repetitions = $(col["repetitions"]) + 0
     tp_ms[ds, var, n] = $(col["mean_ms"]) + 0
     tp_cmp[ds, var, n] = $(col["comparisons"]) + 0
     depth = $(col["depth_exceeded"]) + 0
@@ -127,6 +132,7 @@ bm == "tp_official" {
 }
 
 bm == "extensions_pdq" {
+    if (ext_repetitions == 0) ext_repetitions = $(col["repetitions"]) + 0
     ext_ms[ds, var, n] = $(col["mean_ms"]) + 0
     ext_cmp[ds, var, n] = $(col["comparisons"]) + 0
     ext_swp[ds, var, n] = $(col["swaps"]) + 0
@@ -144,6 +150,7 @@ bm == "extensions_pdq" {
 }
 
 bm == "jit_assembly" {
+    if (jit_repetitions == 0) jit_repetitions = $(col["repetitions"]) + 0
     jit_ms[ds, var, n] = $(col["mean_ms"]) + 0
     jit_inst[ds, var, n] = $(col["mean_instructions"]) + 0
     jit_cyc[ds, var, n] = $(col["mean_cycles"]) + 0
@@ -167,6 +174,15 @@ END {
     def_cmd("ValZenArchGeneration", "3")
     ram_gib = (total_ram_bytes > 0) ? total_ram_bytes / (1024 * 1024 * 1024) : 15.55
     def_cmd("ValHostRamGib", fmt_dec(ram_gib, 2))
+
+    def_cmd("ValCalReps", (cal_repetitions > 0) ? fmt_int(cal_repetitions) : "30")
+    def_cmd("ValCalWarmup", "2")
+    def_cmd("ValTpReps", (tp_repetitions > 0) ? fmt_int(tp_repetitions) : "5")
+    def_cmd("ValTpWarmup", "1")
+    def_cmd("ValExtReps", (ext_repetitions > 0) ? fmt_int(ext_repetitions) : "5")
+    def_cmd("ValExtWarmup", "1")
+    def_cmd("ValJitReps", (jit_repetitions > 0) ? fmt_int(jit_repetitions) : "5")
+    def_cmd("ValJitWarmup", "1")
 
     # --- Seção 5.1: Calibração Empírica do Ponto de Corte ---
     def_cmd("ValCalMinM", "0")
@@ -280,18 +296,27 @@ END {
     def_cmd("ValTpTheoreticalCmpSci", fmt_dec(theory_cmp_50k / 1e6, 3))
     def_cmd("ValTpTheoreticalCmp", fmt_int(theory_cmp_50k))
 
-    def_cmd("ValTpDepthExceededTotal", fmt_int(tp_depth_total))
+    tp_depth_trad_fixed_struct = tp_depth_ds["sorted"] + tp_depth_ds["reverse"]
+    tp_depth_trad_fixed_killer = tp_depth_var_ds["trad_fixed", "worst_case_med3"]
+    tp_depth_trad_fixed_total = tp_depth_trad_fixed_struct + tp_depth_trad_fixed_killer
+    tp_depth_killer_total = tp_depth_ds["worst_case_med3"]
+    tp_depth_total_derived = tp_depth_trad_fixed_struct + tp_depth_killer_total
+
+    def_cmd("ValTpDepthTradFixedStructCount", fmt_int(tp_depth_trad_fixed_struct))
+    def_cmd("ValTpDepthTradFixedKillerCount", fmt_int(tp_depth_trad_fixed_killer))
+    def_cmd("ValTpDepthTradFixedTotalCount", fmt_int(tp_depth_trad_fixed_total))
+    def_cmd("ValTpDepthKillerTotalCount", fmt_int(tp_depth_killer_total))
+    def_cmd("ValTpDepthExceededTotal", fmt_int(tp_depth_total_derived))
     def_cmd("ValTpDepthLimit", "4096")
     def_cmd("ValTpStackLimitMib", "8")
 
-    def_cmd("ValTpDepthTradFixedCount", fmt_int(tp_depth_var["trad_fixed"]))
+    def_cmd("ValTpDepthTradFixedCount", fmt_int(tp_depth_trad_fixed_total))
     def_cmd("ValTpDepthTradCount", fmt_int(tp_depth_var["trad"]))
     def_cmd("ValTpDepthHybCount", fmt_int(tp_depth_var["hybrid"]))
     def_cmd("ValTpDepthMedCount", fmt_int(tp_depth_var["hybrid_med3"]))
 
     def_cmd("ValTpSortedDepthCount", fmt_int(tp_depth_ds["sorted"]))
     def_cmd("ValTpReverseDepthCount", fmt_int(tp_depth_ds["reverse"]))
-    def_cmd("ValTpWorstDepthCount", fmt_int(tp_depth_ds["worst_case"]))
     def_cmd("ValTpRepeatedDepthCount", fmt_int(tp_depth_ds["repeated"]))
     def_cmd("ValTpWorstMedTenKDepthCount", fmt_int(tp_depth_ds_n["worst_case_med3", 10000]))
     def_cmd("ValTpWorstMedFiftyKDepthCount", fmt_int(tp_depth_ds_n["worst_case_med3", 50000]))
@@ -343,13 +368,17 @@ END {
 
     killer_pdq_ms = ext_ms["ext_killer_med3", "pdq_sort", 50000]
     killer_hoare_ms = ext_ms["ext_killer_med3", "hoare_med3", 50000]
-    def_cmd("ValExtKillerNintherMs", fmt_dec(ext_ms["ext_killer_med3", "ninther_hybrid", 50000], 4))
+    killer_ninther_ms = ext_ms["ext_killer_med3", "ninther_hybrid", 50000]
+    def_cmd("ValExtKillerNintherMs", fmt_dec(killer_ninther_ms, 4))
     def_cmd("ValExtKillerNintherComps", fmt_int(ext_cmp["ext_killer_med3", "ninther_hybrid", 50000]))
     def_cmd("ValExtKillerPdqMs", fmt_dec(killer_pdq_ms, 4))
     def_cmd("ValExtKillerPdqComps", fmt_int(ext_cmp["ext_killer_med3", "pdq_sort", 50000]))
 
-    killer_speedup = (killer_pdq_ms > 0) ? sprintf("%.0f", killer_hoare_ms / killer_pdq_ms) : "400"
-    def_cmd("ValExtKillerSpeedupX", killer_speedup)
+    killer_speedup_pdq = (killer_pdq_ms > 0) ? sprintf("%.0f", killer_hoare_ms / killer_pdq_ms) : "394"
+    killer_speedup_ninther = (killer_ninther_ms > 0) ? sprintf("%.0f", killer_hoare_ms / killer_ninther_ms) : "367"
+    def_cmd("ValExtKillerPdqSpeedupX", killer_speedup_pdq)
+    def_cmd("ValExtKillerNintherSpeedupX", killer_speedup_ninther)
+    def_cmd("ValExtKillerSpeedupX", killer_speedup_pdq)
 
     def_cmd("ValExtOrganPdqMs", fmt_dec(ext_ms["ext_organ_pipe", "pdq_sort", 50000], 4))
     def_cmd("ValExtOrganPdqComps", fmt_int(ext_cmp["ext_organ_pipe", "pdq_sort", 50000]))
@@ -445,7 +474,14 @@ END {
     def_cmd("ValExtRandIpcTypMin", "1{,}2")
     def_cmd("ValExtRandIpcTypMax", "1{,}3")
 
-    # Min/max para JIT 50k em dados aleatórios e ordenados
+    # Min/max para JIT na Tabela 3 (todas as configurações e em 50k)
+    jit_ds_list[1] = "jit_random"; jit_ds_prefix[1] = "Rand"
+    jit_ds_list[2] = "jit_sorted"; jit_ds_prefix[2] = "Sort"
+
+    jit_n_list[1] = 10000; jit_n_prefix[1] = "TenK"
+    jit_n_list[2] = 50000; jit_n_prefix[2] = "FiftyK"
+    jit_n_list[3] = 100000; jit_n_prefix[3] = "HundredK"
+
     jit_v_list[1] = "cflags_o1"; jit_v_prefix[1] = "OOne"
     jit_v_list[2] = "cflags_o2"; jit_v_prefix[2] = "OTwo"
     jit_v_list[3] = "cflags_o3_native"; jit_v_prefix[3] = "OThree"
@@ -453,28 +489,64 @@ END {
     jit_v_list[5] = "pragma_unroll_4"; jit_v_prefix[5] = "UnrollFour"
     jit_v_list[6] = "pragma_no_vec"; jit_v_prefix[6] = "NoVec"
 
+    jit_rand_all_br_min = 0; jit_rand_all_br_max = 0
+    jit_rand_all_ipc_min = 0; jit_rand_all_ipc_max = 0
+    jit_sort_all_br_min = 0; jit_sort_all_br_max = 0
+    jit_sort_all_ipc_min = 0; jit_sort_all_ipc_max = 0
+
     jit_rand50_br_min = 0; jit_rand50_br_max = 0
     jit_rand50_ipc_min = 0; jit_rand50_ipc_max = 0
     jit_sort50_br_min = 0; jit_sort50_br_max = 0
     jit_sort50_ipc_min = 0; jit_sort50_ipc_max = 0
 
-    for (v = 1; v <= 6; v++) {
-        jv = jit_v_list[v]
-        r_br = jit_br["jit_random", jv, 50000]
-        r_ipc = jit_ipc["jit_random", jv, 50000]
-        s_br = jit_br["jit_sorted", jv, 50000]
-        s_ipc = jit_ipc["jit_sorted", jv, 50000]
+    for (d = 1; d <= 2; d++) {
+        for (sn = 1; sn <= 3; sn++) {
+            for (v = 1; v <= 6; v++) {
+                j_d = jit_ds_list[d]
+                j_n = jit_n_list[sn]
+                j_v = jit_v_list[v]
 
-        if (jit_rand50_br_min == 0 || r_br < jit_rand50_br_min) jit_rand50_br_min = r_br
-        if (r_br > jit_rand50_br_max) jit_rand50_br_max = r_br
-        if (jit_rand50_ipc_min == 0 || r_ipc < jit_rand50_ipc_min) jit_rand50_ipc_min = r_ipc
-        if (r_ipc > jit_rand50_ipc_max) jit_rand50_ipc_max = r_ipc
+                br_val = jit_br[j_d, j_v, j_n]
+                ipc_val = jit_ipc[j_d, j_v, j_n]
 
-        if (jit_sort50_br_min == 0 || s_br < jit_sort50_br_min) jit_sort50_br_min = s_br
-        if (s_br > jit_sort50_br_max) jit_sort50_br_max = s_br
-        if (jit_sort50_ipc_min == 0 || s_ipc < jit_sort50_ipc_min) jit_sort50_ipc_min = s_ipc
-        if (s_ipc > jit_sort50_ipc_max) jit_sort50_ipc_max = s_ipc
+                if (j_d == "jit_random") {
+                    if (jit_rand_all_br_min == 0 || br_val < jit_rand_all_br_min) jit_rand_all_br_min = br_val
+                    if (br_val > jit_rand_all_br_max) jit_rand_all_br_max = br_val
+                    if (jit_rand_all_ipc_min == 0 || ipc_val < jit_rand_all_ipc_min) jit_rand_all_ipc_min = ipc_val
+                    if (ipc_val > jit_rand_all_ipc_max) jit_rand_all_ipc_max = ipc_val
+
+                    if (j_n == 50000) {
+                        if (jit_rand50_br_min == 0 || br_val < jit_rand50_br_min) jit_rand50_br_min = br_val
+                        if (br_val > jit_rand50_br_max) jit_rand50_br_max = br_val
+                        if (jit_rand50_ipc_min == 0 || ipc_val < jit_rand50_ipc_min) jit_rand50_ipc_min = ipc_val
+                        if (ipc_val > jit_rand50_ipc_max) jit_rand50_ipc_max = ipc_val
+                    }
+                } else if (j_d == "jit_sorted") {
+                    if (jit_sort_all_br_min == 0 || br_val < jit_sort_all_br_min) jit_sort_all_br_min = br_val
+                    if (br_val > jit_sort_all_br_max) jit_sort_all_br_max = br_val
+                    if (jit_sort_all_ipc_min == 0 || ipc_val < jit_sort_all_ipc_min) jit_sort_all_ipc_min = ipc_val
+                    if (ipc_val > jit_sort_all_ipc_max) jit_sort_all_ipc_max = ipc_val
+
+                    if (j_n == 50000) {
+                        if (jit_sort50_br_min == 0 || br_val < jit_sort50_br_min) jit_sort50_br_min = br_val
+                        if (br_val > jit_sort50_br_max) jit_sort50_br_max = br_val
+                        if (jit_sort50_ipc_min == 0 || ipc_val < jit_sort50_ipc_min) jit_sort50_ipc_min = ipc_val
+                        if (ipc_val > jit_sort50_ipc_max) jit_sort50_ipc_max = ipc_val
+                    }
+                }
+            }
+        }
     }
+
+    def_cmd("ValJitTabRandAllBrMin", fmt_dec(jit_rand_all_br_min, 2))
+    def_cmd("ValJitTabRandAllBrMax", fmt_dec(jit_rand_all_br_max, 2))
+    def_cmd("ValJitTabRandAllIpcMin", fmt_dec(jit_rand_all_ipc_min, 2))
+    def_cmd("ValJitTabRandAllIpcMax", fmt_dec(jit_rand_all_ipc_max, 2))
+
+    def_cmd("ValJitTabSortAllBrMin", fmt_dec(jit_sort_all_br_min, 2))
+    def_cmd("ValJitTabSortAllBrMax", fmt_dec(jit_sort_all_br_max, 2))
+    def_cmd("ValJitTabSortAllIpcMin", fmt_dec(jit_sort_all_ipc_min, 2))
+    def_cmd("ValJitTabSortAllIpcMax", fmt_dec(jit_sort_all_ipc_max, 2))
 
     def_cmd("ValJitFiftyKRandBrMin", fmt_dec(jit_rand50_br_min, 1))
     def_cmd("ValJitFiftyKRandBrMax", fmt_dec(jit_rand50_br_max, 1))
