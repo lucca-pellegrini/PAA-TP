@@ -141,7 +141,7 @@ report/data/values.tex: $(REPORT_CSVS) report/macros.awk | report/data
 	awk -f report/macros.awk $(REPORT_CSVS) > $@
 
 report: $(TARGET) $(BUILD_DIR)/libqs_tui.so $(SIM_STAMPS) $(REPORT_CSVS) report/data/host_info.tex report/data/kernel_scalar.s report/data/kernel_unroll4.s report/data/values.tex
-	cd report && PATH=$(CURDIR)/report/.venv/bin:$$PATH latexmk -pdflua -interaction=nonstopmode -shell-escape main.tex
+	cd report && PATH=$(CURDIR)/report/.venv/bin:$$PATH latexmk -pdflua -quiet -interaction=nonstopmode -shell-escape main.tex
 
 clean-KeepProf:
 	rm -rf $(BUILD_DIR) $(TARGET)
@@ -153,7 +153,7 @@ clean: clean-KeepProf
 distclean: clean
 	rm -rf tests/.zig-cache tests/zig-out tui/.zig-cache tui/zig-out
 	rm -rf report/data
-	cd report && latexmk -C main.tex >/dev/null 2>&1 || true
+	cd report && latexmk -quiet -C main.tex >/dev/null 2>&1 || true
 	rm -f report/main.aux report/main.bbl report/main.blg report/main.fdb_latexmk report/main.fls report/main.out report/main.log report/main.pdf
 
 format:
