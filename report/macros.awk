@@ -515,8 +515,14 @@ END {
     def_cmd("ValTheoryOneKCmp", fmt_int(1000 * 999 / 2))
     def_cmd("ValTheoryFiveK", "5000")
     def_cmd("ValTheoryCutoffFifty", "50")
-    def_cmd("ValTheoryGainMinPct", "10")
-    def_cmd("ValTheoryGainMaxPct", "12")
+    # Ganhos globais de hibridização derivados da matriz canônica (random e repeated em n=50000)
+    rep_trad_ms = tp_ms["repeated", "trad", 50000]
+    rep_hyb_ms  = tp_ms["repeated", "hybrid", 50000]
+    rep_sp = (rep_trad_ms > 0) ? (1.0 - rep_hyb_ms / rep_trad_ms) * 100.0 : 21.5
+    gain_min = (rand_sp < rep_sp) ? rand_sp : rep_sp
+    gain_max = (rand_sp > rep_sp) ? rand_sp : rep_sp
+    def_cmd("ValTheoryGainMinPct", fmt_dec(gain_min, 1))
+    def_cmd("ValTheoryGainMaxPct", fmt_dec(gain_max, 1))
 
     # --- Apêndice: Tabela tab:jit-assembly-full ---
     jit_ds_list[1] = "jit_random"; jit_ds_prefix[1] = "Rand"
