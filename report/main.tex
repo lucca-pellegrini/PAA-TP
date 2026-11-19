@@ -216,7 +216,7 @@ A avaliação do thread pool nativo em C23 com afinidade estática de núcleos e
 
 A telemetria via contadores de hardware revela a interdependência direta entre entropia de dados, previsibilidade de saltos e instruções executadas por ciclo. Como as comparações em dados aleatórios tomam caminhos com probabilidade próxima a $\ValExtRandPathProbPct\%$, a incerteza do fluxo impõe taxas elevadas de erro de predição de desvios. Na avaliação sistemática de compilação escalar e diretivas de laço detalhada na \cref{tab:jit-assembly-full}, a taxa de falha de desvios em dados aleatórios estende-se de $\ValJitTabRandAllBrMin\%$ a $\ValJitTabRandAllBrMax\%$ ao longo de todas as configurações (com $\ValJitFiftyKRandBrMin\%$ a $\ValJitFiftyKRandBrMax\%$ em $n = \ValCalFiftyKRaw$), enquanto o IPC estabiliza-se na faixa estreita de $\ValJitTabRandAllIpcMin$ a $\ValJitTabRandAllIpcMax$ ($\ValJitFiftyKRandIpcMin$ a $\ValJitFiftyKRandIpcMax$ em $n = \ValCalFiftyKRaw$). Como cada erro acarreta o descarte de pipeline de \ValZenDiscardCyclesMin\ a \ValZenDiscardCyclesMax\ ciclos no núcleo Zen~\ValZenArchGeneration, o IPC permanece contido nesse patamar. Em contrapartida, sob arranjos com regularidade espacial como tubo de órgão, chaves repetidas e sequências pré-ordenadas, os preditores de salto convergem com rapidez e reduzem a taxa de falhas para menos de $\ValPmuRegularBranchMissCutoff\%$ ($\ValJitTabSortAllBrMin\%$ a $\ValJitTabSortAllBrMax\%$ em todas as dimensões de vetores ordenados da \cref{tab:jit-assembly-full}, com $\ValJitFiftyKSortBrMin\%$ a $\ValJitFiftyKSortBrMax\%$ em $n = \ValCalFiftyKRaw$, além de $\ValPmuKillerBranchMissPct\%$ no adversário de McIlroy e $\ValPmuOrganBranchMissPct\%$ em tubo de órgão). Sem a penalidade de descarte de pipeline, a microarquitetura alcança índices de IPC entre $\ValJitTabSortAllIpcMin$ e $\ValJitTabSortAllIpcMax$ ($\ValJitFiftyKSortIpcMin$ a $\ValJitFiftyKSortIpcMax$ em $n = \ValCalFiftyKRaw$, com registro de $\ValPmuRegularIpcMax$ sob máxima regularidade), patamar próximo ao limite teórico de \ValPmuZenMaxDecoded\ instruções decodificadas por ciclo.
 
-A investigação de compilação dinâmica sob demanda em dados aleatórios com cem mil elementos elucida contraexemplos importantes relativos ao desenrolamento de laços. A linha de base compilada com otimização máxima nativa requer $\ValJitRandOThreeMs\text{ ms}$, com consumo de $\ValJitRandOThreeInst$ instruções e $\ValJitRandOThreeCycles$ ciclos com IPC de $\ValJitRandOThreeIpc$ e $\ValJitRandOThreeBranchMissPct\%$ de falhas de desvio. A imposição de desenrolamento forçado com fator de \ValUnrollFactor\ iterações via diretiva pragmática eleva o tempo para $\ValJitRandUnrollFourMs\text{ ms}$, o que representa acréscimo temporal de $\ValJitRandUnrollFourMsIncPctRound\%$ acompanhado pelo aumento de $\ValJitRandUnrollFourInstIncPctRound\%$ nas instruções totais, que sobem para $\ValJitRandUnrollFourInst$. Conquanto o desenrolamento reduza discretamente a taxa de erro de desvios para $\ValJitRandUnrollFourBranchMissPct\%$, ele inflaciona a pegada de código e sobrecarrega a decodificação da CPU com o tratamento de caudas de resíduo sem acelerar o avanço de ponteiros condicionado por dados. Ademais, a desativação de vetorização atinge $\ValJitRandNoVecMs\text{ ms}$, com alteração inferior a $\ValJitRandNoVecDiffThresholdPct\%$, resultado que confirma que laços de partição com saltos bidirecionais dependentes de dados não admitem vetorização SIMD automática; paralelamente, a transição entre os níveis de otimização escalar exibe variação de apenas $\ValJitRandOptVarPct\%$, com marcas de $\ValJitRandOOneMs\text{ ms}$ em nível básico e $\ValJitRandOTwoMs\text{ ms}$ em nível intermediário. As listagens de código de máquina e a análise microarquitetural das classes de instruções constam no \cref{sec:apendice-asm}.
+A investigação de compilação dinâmica sob demanda em dados aleatórios com cem mil elementos elucida contraexemplos importantes relativos ao desenrolamento de laços. A linha de base compilada com otimização máxima nativa requer $\ValJitRandOThreeMs\text{ ms}$, com consumo de $\ValJitRandOThreeInst$ instruções e $\ValJitRandOThreeCycles$ ciclos com IPC de $\ValJitRandOThreeIpc$ e $\ValJitRandOThreeBranchMissPct\%$ de falhas de desvio. A imposição de desenrolamento forçado com fator de \ValUnrollFactor\ iterações via diretiva pragmática eleva o tempo para $\ValJitRandUnrollFourMs\text{ ms}$, o que representa acréscimo temporal de $\ValJitRandUnrollFourMsIncPctRound\%$ acompanhado pelo aumento de $\ValJitRandUnrollFourInstIncPctRound\%$ nas instruções totais, que sobem para $\ValJitRandUnrollFourInst$. Conquanto o desenrolamento reduza discretamente a taxa de erro de desvios para $\ValJitRandUnrollFourBranchMissPct\%$, ele inflaciona a pegada de código e sobrecarrega a decodificação da CPU com o tratamento de caudas de resíduo sem acelerar o avanço de ponteiros condicionado por dados. Ademais, a desativação de vetorização atinge $\ValJitRandNoVecMs\text{ ms}$, com alteração inferior a $\ValJitRandNoVecDiffThresholdPct\%$, resultado que confirma que laços de partição com saltos bidirecionais dependentes de dados não admitem vetorização SIMD automática; paralelamente, a transição entre os níveis de otimização escalar exibe variação de apenas $\ValJitRandOptVarPct\%$, com marcas de $\ValJitRandOOneMs\text{ ms}$ em nível básico e $\ValJitRandOTwoMs\text{ ms}$ em nível intermediário. As listagens de código de máquina e a análise microarquitetural das classes de instruções constam no Apêndice~\ref{sec:apendice-asm}.
 
 \subsection{Discussão Integrada e Limitações}\label{sec:res-discussao}
 
@@ -233,8 +233,9 @@ Os ensaios de estresse e adversários comprovaram as vulnerabilidades severas de
 \bibliographystyle{sbc}
 \bibliography{references}
 
+\clearpage
 \appendix
-\section{Apêndice: Tabelas Estendidas de Otimização JIT}\label{sec:apendice}
+\section{Tabelas Estendidas de Otimização JIT}\label{sec:apendice}
 
 A \cref{tab:jit-assembly-full} apresenta os resultados completos obtidos na campanha de compilação dinâmica sob demanda, com a avaliação de níveis de otimização escalar do compilador Clang e diretivas explícitas de laço sobre as cargas de dados aleatórios e ordenados nas dimensões de \ValCalNSmall, \ValCalNLarge\ e \ValCalNHundredK\ elementos.
 
@@ -288,7 +289,8 @@ A \cref{tab:jit-assembly-full} apresenta os resultados completos obtidos na camp
 \end{tabular}
 \end{table}
 
-\section{Apêndice: Listagens de Código de Máquina}\label{sec:apendice-asm}
+\clearpage
+\section{Listagens de Código de Máquina}\label{sec:apendice-asm}
 
 Este apêndice analisa os excertos de código de máquina emitidos pelo compilador para os laços críticos do algoritmo Quicksort e avalia as transformações microarquiteturais causadas por níveis de otimização e diretivas pragmáticas de laço. Todas as listagens adotam a sintaxe Intel para a arquitetura x86-64 com extensões vetoriais avançadas (AVX2), com o registrador de destino à esquerda e identificação explícita de larguras de memória.
 
@@ -296,7 +298,7 @@ Este apêndice analisa os excertos de código de máquina emitidos pelo compilad
 
 A rotina de comparação do núcleo do algoritmo resolve a direção da ordenação por meio de uma expressão condicional que escolhe entre a relação de menor ou maior conforme a ordem solicitada. Para evitar desvios no fluxo de execução, o compilador traduz essa lógica com uma sequência estritamente linear de instruções, apresentada na \cref{fig:asm-scalar}.
 
-Nesse trecho, a instrução de ou-exclusivo lógico zera o registrador ao operar sobre si mesma, com latência nula de processador. Esse zeramento prévio é necessário porque as instruções subsequentes de ajuste condicional gravam apenas no byte menos significativo de cada registrador, sem alterar os bits superiores. Com o zeramento inicial, o valor lógico converte-se em um número inteiro limpo de trinta e dois bits. Em seguida, a instrução de comparação aritmética subtrai os operandos e atualiza as bandeiras de estado da unidade central de processamento. As instruções de ajuste condicional marcam um se a comparação for estritamente menor ou estritamente maior. O teste lógico avalia o parâmetro de ordem ascendente, e a instrução de movimentação condicional seleciona o resultado correto sem incorrer em penalidades de erro de predição de desvio. Por fim, o teste lógico de byte e o salto condicional determinam se a varredura prossegue.
+Nesse trecho, a instrução de ou-exclusivo lógico zera o registrador ao operar sobre si mesma, com latência nula de processador. Esse zeramento prévio é necessário porque as instruções subsequentes de ajuste condicional gravam apenas no byte menos significativo de cada registrador, sem alterar os bits superiores. Com o zeramento inicial, o valor lógico converte-se em um número inteiro limpo de 32 bits. Em seguida, a instrução de comparação aritmética subtrai os operandos e atualiza as bandeiras de estado da unidade central de processamento. As instruções de ajuste condicional marcam um se a comparação for estritamente menor ou estritamente maior. O teste lógico avalia o parâmetro de ordem ascendente, e a instrução de movimentação condicional seleciona o resultado correto sem incorrer em penalidades de erro de predição de desvio. Por fim, o teste lógico de byte e o salto condicional determinam se a varredura prossegue.
 
 \begin{figure}[htbp]
 \centering
@@ -331,9 +333,7 @@ if (cond)
 \label{fig:asm-scalar}
 \end{figure}
 
-O uso de movimentações condicionais elimina o custo de descarte de estágios do processador na alternância de ordem. A variante sob otimização máxima nativa acumula 1\,368 instruções de movimentação condicional, contra 896 instruções no nível intermediário de otimização.
-
-Em contrapartida, a imposição de desenrolamento forçado com fator quatro replica o corpo do laço de partição de maneira sequencial, como ilustra o \cref{fig:asm-unroll}. Cada réplica executa o teste condicional e, se os elementos violam a ordem, realiza a troca direta na memória por meio de instruções de movimentação escalar de quatro bytes.
+O uso de movimentações condicionais elimina o custo de descarte de estágios do processador na alternância de ordem. A variante sob otimização máxima nativa acumula 1\,368 instruções de movimentação condicional, contra 896 instruções no nível intermediário de otimização. Em contrapartida, a imposição de desenrolamento forçado com fator quatro replica o corpo do laço de partição de maneira sequencial, como ilustra a \cref{fig:asm-unroll}. Cada réplica executa o teste condicional e, se os elementos violam a ordem, realiza a troca direta na memória por meio de instruções de movimentação escalar de quatro bytes.
 
 \begin{figure}[htbp]
 \centering
@@ -377,9 +377,7 @@ Essa replicação quádrupla expande o total de instruções de 24\,187 na varia
 
 \subsection{Vetorização na Inserção do Caso Base sob Execução com Cauda}\label{sec:apendice-asm-vetorizacao}
 
-O laço de partição do Quicksort não admite vetorização automática porque o avanço dos ponteiros depende do conteúdo dos dados em cada passo. Se a diretiva explícita de vetorização for aplicada ao laço de partição, o compilador emite 480 avisos de transformação impossível e produz um código idêntico ao escalar nativo, com 37\,058 instruções.
-
-Entretanto, o deslocamento de elementos na ordenação por inserção do caso base ocorre sobre faixas contíguas. O trecho da \cref{fig:asm-simd} pertence à rotina de execução com cauda (\texttt{qs\_tail\_clean}), em que o compilador vetoriza a cópia desses blocos com instruções de duzentos e cinquenta e seis bits.
+O laço de partição do Quicksort não admite vetorização automática porque o avanço dos ponteiros depende do conteúdo dos dados em cada passo. Se a diretiva explícita de vetorização for aplicada ao laço de partição, o compilador emite 480 avisos de transformação impossível e produz um código idêntico ao escalar nativo, com 37\,058 instruções. Entretanto, o deslocamento de elementos na ordenação por inserção do caso base ocorre sobre faixas contíguas. O trecho da \cref{fig:asm-simd} pertence à rotina de execução com cauda (\texttt{qs\_tail\_clean}), em que o compilador vetoriza a cópia desses blocos com instruções de 256 bits.
 
 \begin{figure}[htbp]
 \centering
@@ -420,13 +418,11 @@ do {
 } while (k != lim);
 \end{minted}
 \end{minipage}
-\caption{Translação vetorial com instruções de duzentos e cinquenta e seis bits na inserção do caso base (à esquerda) e descompilação equivalente (à direita).}
+\caption{Translação vetorial com instruções de 256 bits na inserção do caso base (à esquerda) e descompilação equivalente (à direita).}
 \label{fig:asm-simd}
 \end{figure}
 
-A instrução vetorial desalinhada copia trinta e dois bytes de dados entre a memória e registradores vetoriais sem exigir alinhamento estrito de endereços. Com quatro registradores desse grupo em operação conjunta, o laço desloca trinta e dois inteiros, o que equivale a 128 bytes por iteração. A instrução de adição ajusta o registrador de índice, a comparação de oito bytes verifica o limite da faixa e o salto condicional repete o bloco vetorial. A variante com compilação nativa acumula 173 instruções vetoriais desse grupo.
-
-Ao desativar a vetorização por sinalizadores de compilação, o compilador recorre ao laço escalar tradicional com instruções de movimentação simples de quatro bytes e decremento unitário de ponteiros, apresentado no \cref{fig:asm-novec}.
+A instrução vetorial desalinhada copia 32 bytes de dados entre a memória e registradores vetoriais sem exigir alinhamento estrito de endereços. Com quatro registradores desse grupo em operação conjunta, o laço desloca 32 inteiros, o que equivale a 128 bytes por iteração. A instrução de adição ajusta o registrador de índice, a comparação de oito bytes verifica o limite da faixa e o salto condicional repete o bloco vetorial. A variante com compilação nativa acumula 173 instruções vetoriais desse grupo. Ao desativar a vetorização por sinalizadores de compilação, o compilador recorre ao laço escalar tradicional com instruções de movimentação simples de quatro bytes e decremento unitário de ponteiros, apresentado no \cref{fig:asm-novec}.
 
 \begin{figure}[htbp]
 \centering
@@ -464,9 +460,10 @@ do {
 \label{fig:asm-novec}
 \end{figure}
 
-Nesse laço escalar, a instrução de movimentação carrega um único elemento da memória, a instrução de decremento recua o índice em uma posição e o par de ou-exclusivos limpa os registradores antes das instruções de ajuste de byte. O teste lógico e a movimentação condicional realizam a seleção de ordem, e o salto condicional por igualdade repete a varredura enquanto a condição de parada não for atingida. Sob vetorização desativada, o número de instruções vetoriais de duzentos e cinquenta e seis bits cai de 173 para 12 instruções residuais no módulo completo, e a diferença de tempo medida entre as duas versões em $n = 10^5$ elementos aleatórios é inferior a 2\,\%, da ordem da dispersão entre repetições.
+Nesse laço escalar, a instrução de movimentação carrega um único elemento da memória, a instrução de decremento recua o índice em uma posição e o par de ou-exclusivos limpa os registradores antes das instruções de ajuste de byte. O teste lógico e a movimentação condicional realizam a seleção de ordem, e o salto condicional por igualdade repete a varredura enquanto a condição de parada não for atingida. Sob vetorização desativada, o número de instruções vetoriais de 256 bits cai de 173 para 12 instruções residuais no módulo completo, e a diferença de tempo medida entre as duas versões em $n = 10^5$ elementos aleatórios é inferior a 2\,\%, da ordem da dispersão entre repetições.
 
-\section{Apêndice: Linguagem de Configuração e Planos de Simulação}\label{sec:apendice-dsl}
+\clearpage
+\section{Linguagem de Configuração e Planos de Simulação}\label{sec:apendice-dsl}
 
 Este apêndice documenta a sintaxe e a organização da linguagem de domínio específico projetada para a configuração dos experimentos. A ferramenta adota uma gramática declarativa que desacopla a infraestrutura de medição do hospedeiro, os geradores de dados vetoriais, a parametrização das variantes algorítmicas e os planos de execução comparativa.
 
